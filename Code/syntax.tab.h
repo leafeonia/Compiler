@@ -65,14 +65,15 @@ extern int yydebug;
     DIV = 275,
     STAR = 276,
     NOT = 277,
-    DOT = 278,
-    LB = 279,
-    RB = 280,
-    LP = 281,
-    RP = 282,
-    LC = 283,
-    RC = 284,
-    LOWER_THAN_ELSE = 285
+    UMINUS = 278,
+    DOT = 279,
+    LB = 280,
+    RB = 281,
+    LP = 282,
+    RP = 283,
+    LC = 284,
+    RC = 285,
+    LOWER_THAN_ELSE = 286
   };
 #endif
 

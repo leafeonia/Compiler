@@ -12,9 +12,8 @@
 %left RELOP
 %left MINUS PLUS
 %left DIV STAR
-%right NOT
+%right NOT UMINUS
 %left DOT LB RB LP RP LC RC
-
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -175,6 +174,13 @@ Stmt : Exp SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
+}	|	IF LP Exp RP Stmt %prec LOWER_THAN_ELSE{
+	$$ = initNode(NONTERMINAL, "Stmt", @$.first_line);
+	insert($$, $1);
+	insert($$, $2);
+	insert($$, $3);
+	insert($$, $4);
+	insert($$, $5);
 }	|	IF LP Exp RP Stmt ELSE Stmt{
 	$$ = initNode(NONTERMINAL, "Stmt", @$.first_line);
 	insert($$, $1);
@@ -278,7 +284,7 @@ Exp : Exp ASSIGNOP Exp{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
-}	|	MINUS Exp{
+}	|	MINUS Exp %prec UMINUS{
 	$$ = initNode(NONTERMINAL, "Exp", @$.first_line);
 	insert($$, $1);
 	insert($$, $2);
@@ -334,7 +340,7 @@ Args : Exp COMMA Args{
 %%
 
 yyerror(char* msg) {
-	fprintf(stderr, "error: %s\n", msg);
+	fprintf(stderr, "Error type B at Line %d:  %s.\n", yylineno, msg);
 }
 
 

@@ -47,7 +47,7 @@ void preOrder(Node* current, int depth){
 			printf("%s\n", current->data);
 			break;
 		case ENUM_FLOAT:
-			printf("FLOAT: %f\n", atof(current->data));
+			printf("FLOAT: %f\n", strtof(current->data, NULL));
 			break;
 		case ENUM_INT:
 			printf("INT: %d\n", atoi(current->data));

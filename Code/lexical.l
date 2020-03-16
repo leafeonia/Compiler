@@ -23,9 +23,7 @@ extern int errorFlag;
 
 nonZeroDigit [1-9]
 digit [0-9]
-nonZeroOctDigit [1-7]
 octDigit [0-7]
-nonZeroHexDigit [1-9a-fA-F]
 hexDigit [0-9a-fA-F]
 _word [_a-zA-Z]
 _wordDigit [_0-9a-zA-Z]
@@ -67,20 +65,21 @@ _wordDigit [_0-9a-zA-Z]
 <Comment2>"*/"					{ BEGIN(INITIAL);}
 <Comment2>.						{}
 <Comment2>\n					{}
+<Comment2><<EOF>>				{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(); BEGIN(INITIAL);}
 
 0								{ INIT_TYPE(ENUM_INT, yytext); return INT;}
 {nonZeroDigit}{digit}* 			{ INIT_TYPE(ENUM_INT, yytext); return INT;}
-0(0|{nonZeroOctDigit}{octDigit}*)	{ INIT_TYPE(OCT, yytext); return INT;}
-0[Xx](0|{nonZeroHexDigit}{hexDigit}*)	{ INIT_TYPE(HEX, yytext); return INT;}
-0[Xx]{_wordDigit}*				{ printf("Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError();}
-0{_wordDigit}+					{ printf("Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError();}
+0{octDigit}+	{ INIT_TYPE(OCT, yytext); return INT;}
+0[Xx]{hexDigit}+	{ INIT_TYPE(HEX, yytext); return INT;}
+0[Xx]{_wordDigit}*				{ fprintf(stderr, "Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError();}
+0{_wordDigit}+					{ fprintf(stderr, "Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError();}
 {_word}{_wordDigit}*			{ INIT_TYPE(ENUM_ID, yytext); return ID;}
 
 (({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee][\+-]?{digit}+	{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
-(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigit}*	{printf("Error type A at Line %d: Illegal floating point number '%s'\n",yylineno, yytext); setError();}
+(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigit}*	{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError();}
 
 {digit}+\.{digit}+				{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
 
 
-.  		 						{ printf("Error type A at Line %d: Mysterious characters \'%s\'\n", yylineno, yytext); setError(); }
+.  		 						{ fprintf( stderr, "Error type A at Line %d: Mysterious characters '%s'.\n", yylineno, yytext); setError(); }
 %%
