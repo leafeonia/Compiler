@@ -2271,6 +2271,7 @@ yyreturn:
 
 yyerror(char* msg) {
 	fprintf(stderr, "Error type B at Line %d:  %s.\n", yylineno, msg);
+	setError();
 }
 
 

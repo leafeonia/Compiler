@@ -8,6 +8,7 @@
 #include "syntax.tab.h"
 int yycolumn = 1;
 extern int errorFlag;
+extern int endLine;
 #define YY_USER_ACTION\
 	yylloc.first_line = yylloc.last_line = yylineno; \
 	yylloc.first_column = yycolumn; \
@@ -66,6 +67,8 @@ _wordDigit [_0-9a-zA-Z]
 <Comment2>.						{}
 <Comment2>\n					{}
 <Comment2><<EOF>>				{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(); BEGIN(INITIAL);}
+
+<<EOF>>							{ endLine = yylineno; yyterminate();}
 
 0								{ INIT_TYPE(ENUM_INT, yytext); return INT;}
 {nonZeroDigit}{digit}* 			{ INIT_TYPE(ENUM_INT, yytext); return INT;}

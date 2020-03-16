@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 int errorFlag = 0;
+int endLine = 1;
 
 Node* initNode(int type, char* data, int line){
 	Node* node = (Node*)malloc(sizeof(Node));
@@ -74,7 +75,8 @@ void preOrder(Node* current, int depth){
 
 void printTree(){
 	if(!errorFlag){
-		preOrder(root, 0);
+		if(!(root->child)) printf("Program (%d)\n", endLine);
+		else preOrder(root, 0);
 	}
 }
 
