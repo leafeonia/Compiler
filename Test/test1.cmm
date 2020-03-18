@@ -1,4 +1,11 @@
-int main()
-{
-	-2;
-}/*
+int a[12][12];
+int a(int arg,int arg2){
+	int a = 2;
+	return 0;
+}
+
+int 7a;
+int floataa(int a){
+
+return 0;
+}
