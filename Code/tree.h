@@ -21,6 +21,7 @@ void insert(Node* parent, Node* child);
 void preOrder(Node* current, int depth);
 void printTree();
 void clear();
-void setError();
+void setError(int val); 
+int getErrorFlag();
 
 #endif

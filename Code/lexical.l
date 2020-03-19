@@ -66,7 +66,7 @@ _wordDigit [_0-9a-zA-Z]
 <Comment2>"*/"					{ BEGIN(INITIAL);}
 <Comment2>.						{}
 <Comment2>\n					{}
-<Comment2><<EOF>>				{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(); BEGIN(INITIAL);}
+<Comment2><<EOF>>				{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(1); BEGIN(INITIAL);}
 
 <<EOF>>							{ endLine = yylineno; yyterminate();}
 
@@ -74,15 +74,15 @@ _wordDigit [_0-9a-zA-Z]
 {nonZeroDigit}{digit}* 			{ INIT_TYPE(ENUM_INT, yytext); return INT;}
 0{octDigit}+	{ INIT_TYPE(OCT, yytext); return INT;}
 0[Xx]{hexDigit}+	{ INIT_TYPE(HEX, yytext); return INT;}
-0[Xx]{_wordDigit}*				{ fprintf(stderr, "Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError();}
-0{_wordDigit}+					{ fprintf(stderr, "Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError();}
+0[Xx]{_wordDigit}*				{ fprintf(stderr, "Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError(1);}
+0{_wordDigit}+					{ fprintf(stderr, "Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError(1);}
 {_word}{_wordDigit}*			{ INIT_TYPE(ENUM_ID, yytext); return ID;}
 
 (({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee][\+-]?{digit}+	{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
-(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigit}*	{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError();}
+(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigit}*	{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError(1);}
 
 {digit}+\.{digit}+				{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
 
 
-.  		 						{ fprintf( stderr, "Error type A at Line %d: Mysterious characters '%s'.\n", yylineno, yytext); setError(); }
+.  		 						{ fprintf( stderr, "Error type A at Line %d: Mysterious characters '%s'.\n", yylineno, yytext); setError(1); }
 %%

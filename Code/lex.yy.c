@@ -1036,7 +1036,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case YY_STATE_EOF(Comment2):
 #line 69 "./lexical.l"
-{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(); BEGIN(INITIAL);}
+{ fprintf(stderr, "Error type A at Line %d: Unterminated nested comment.\n",yylineno); setError(1); BEGIN(INITIAL);}
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(Comment1):
@@ -1066,12 +1066,12 @@ YY_RULE_SETUP
 case 38:
 YY_RULE_SETUP
 #line 77 "./lexical.l"
-{ fprintf(stderr, "Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError();}
+{ fprintf(stderr, "Error type A at Line %d: Illegal hexadecimal number '%s'.\n",yylineno, yytext); setError(1);}
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
 #line 78 "./lexical.l"
-{ fprintf(stderr, "Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError();}
+{ fprintf(stderr, "Error type A at Line %d: Illegal octal number '%s'.\n",yylineno, yytext); setError(1);}
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
@@ -1086,7 +1086,7 @@ YY_RULE_SETUP
 case 42:
 YY_RULE_SETUP
 #line 82 "./lexical.l"
-{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError();}
+{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError(1);}
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
@@ -1096,7 +1096,7 @@ YY_RULE_SETUP
 case 44:
 YY_RULE_SETUP
 #line 87 "./lexical.l"
-{ fprintf( stderr, "Error type A at Line %d: Mysterious characters '%s'.\n", yylineno, yytext); setError(); }
+{ fprintf( stderr, "Error type A at Line %d: Mysterious characters '%s'.\n", yylineno, yytext); setError(1); }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP

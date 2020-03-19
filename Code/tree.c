@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int errorFlag = 0;
+int errorFlag = 0; //0: no error  1: lex error  2: syntax error
 int endLine = 1;
 
 Node* initNode(int type, char* data, int line){
@@ -80,8 +80,12 @@ void printTree(){
 	}
 }
 
-void setError(){
-	errorFlag = 1;
+void setError(int val){
+	errorFlag = val;
+}
+
+int getErrorFlag(){
+	return errorFlag;
 }
 
 void doClear(Node* current){
