@@ -2,8 +2,10 @@
 %{
 	#include "lex.yy.c"
 	#include "tree.h"
-	#define ERROR(line, info) printf("Probable reason of error: %s.\n", info);setError(2);
+	#define ERROR(line, info) //printf("Probable reason of error: %s.\n", info);setError(2);
 %}
+
+%define parse.error verbose
 
 %token INT FLOAT ID SEMI COMMA TYPE STRUCT RETURN IF ELSE WHILE
 
@@ -51,9 +53,7 @@ ExtDef : Specifier ExtDecList SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
-}	|	error SEMI{
-	ERROR(@1.first_line, "invalid definition");
-}	
+}	|	error SEMI{}
 	;
 	
 ExtDecList : VarDec{
@@ -87,9 +87,7 @@ StructSpecifier : STRUCT OptTag LC DefList RC{
 	$$ = initNode(NONTERMINAL, "StructSpecifier", @$.first_line);
 	insert($$, $1);
 	insert($$, $2);
-}	|	STRUCT error SEMI{
-	ERROR(@2.first_line, "invalid struct definition");
-}
+}	
 	;
 	
 OptTag : ID{
@@ -115,13 +113,7 @@ VarDec : ID{
 	insert($$, $2);
 	insert($$, $3);
 	insert($$, $4);
-}	|	error LB INT RB{
-	ERROR(@1.first_line, "invalid variable declaration");
-}	|	VarDec LB error RB{
-	ERROR(@3.first_line, "Not a integer in '[]'");
-}	|	VarDec LB error SEMI{
-	ERROR(@3.first_line, "missing ']' in variable declaration");
-}		
+}			
 	;
 	
 FunDec : ID LP VarList RP{
@@ -164,9 +156,7 @@ CompSt : LC DefList StmtList RC{
 	insert($$, $2);
 	insert($$, $3);
 	insert($$, $4);
-}	|	error RC{
-	
-}
+}	|	error RC{}
 	;
 	
 StmtList : Stmt StmtList{
@@ -213,9 +203,8 @@ Stmt : Exp SEMI{
 	insert($$, $3);
 	insert($$, $4);
 	insert($$, $5);
-}	|	error SEMI{
-	ERROR(@1.first_line, "invalid statement");
-}
+}	|	RETURN error SEMI{}
+	|	error SEMI{}
 	;
 	
 DefList : Def DefList{
@@ -232,7 +221,7 @@ Def : Specifier DecList SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
-}	
+}	| Specifier DecList error {}
 	;
 	
 DecList : Dec{
@@ -341,9 +330,7 @@ Exp : Exp ASSIGNOP Exp{
 }	|	FLOAT{
 	$$ = initNode(NONTERMINAL, "Exp", @$.first_line);
 	insert($$, $1);
-}	|	error SEMI{
-
-}
+}	|LP error RP{}|ID LP error RP{}|Exp LB error RB{}
 	;
 	
 Args : Exp COMMA Args{
