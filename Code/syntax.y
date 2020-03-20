@@ -114,7 +114,7 @@ VarDec : ID{
 	insert($$, $2);
 	insert($$, $3);
 	insert($$, $4);
-}	|	VarDec LB error RB	{}	
+}	//|	VarDec LB error RB	{}	
 	;
 	
 FunDec : ID LP VarList RP{
@@ -221,7 +221,8 @@ Def : Specifier DecList SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
-}	| error SEMI{} //| error WHILE LP Exp RP{} 
+}	//| error SEMI{} //| error WHILE LP Exp RP{} 
+	|	Specifier DecList error{} | Specifier error SEMI{}
 	;
 	
 DecList : Dec{

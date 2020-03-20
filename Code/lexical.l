@@ -28,7 +28,6 @@ octDigit [0-7]
 hexDigit [0-9a-fA-F]
 _word [_a-zA-Z]
 _wordDigit [_0-9a-zA-Z]
-_wordDigitError [_0-9a-zA-Z\.\+-]
 
 %%
 
@@ -80,7 +79,7 @@ _wordDigitError [_0-9a-zA-Z\.\+-]
 {_word}{_wordDigit}*			{ INIT_TYPE(ENUM_ID, yytext); return ID;}
 
 (({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee][\+-]?{digit}+	{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
-(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigitError}*	{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError(1);}
+(({digit}*\.{digit}+)|({digit}+\.{digit}*))[Ee]{_wordDigit}*	{ fprintf(stderr, "Error type A at Line %d: Illegal floating point number '%s'.\n",yylineno, yytext); setError(1);}
 
 {digit}+\.{digit}+				{ INIT_TYPE(ENUM_FLOAT, yytext); return FLOAT;}
 
