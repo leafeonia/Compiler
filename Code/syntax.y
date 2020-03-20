@@ -54,6 +54,7 @@ ExtDef : Specifier ExtDecList SEMI{
 	insert($$, $2);
 	insert($$, $3);
 }	|	error SEMI{}
+	|	Specifier error ExtDef{}
 	;
 	
 ExtDecList : VarDec{
@@ -113,7 +114,7 @@ VarDec : ID{
 	insert($$, $2);
 	insert($$, $3);
 	insert($$, $4);
-}			
+}	|	VarDec LB error RB	{}	
 	;
 	
 FunDec : ID LP VarList RP{
@@ -203,8 +204,7 @@ Stmt : Exp SEMI{
 	insert($$, $3);
 	insert($$, $4);
 	insert($$, $5);
-}	|	RETURN error SEMI{}
-	|	error SEMI{}
+}	|	error SEMI{}
 	;
 	
 DefList : Def DefList{
@@ -221,7 +221,7 @@ Def : Specifier DecList SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
-}	| Specifier DecList error {}
+}	| error SEMI{} //| error WHILE LP Exp RP{} 
 	;
 	
 DecList : Dec{
@@ -330,7 +330,7 @@ Exp : Exp ASSIGNOP Exp{
 }	|	FLOAT{
 	$$ = initNode(NONTERMINAL, "Exp", @$.first_line);
 	insert($$, $1);
-}	|LP error RP{}|ID LP error RP{}|Exp LB error RB{}
+}	|Exp LB error RB{}|LP error RP{}|ID LP error RP{}
 	;
 	
 Args : Exp COMMA Args{
