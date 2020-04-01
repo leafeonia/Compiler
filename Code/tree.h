@@ -23,5 +23,6 @@ void printTree();
 void clear();
 void setError(int val); 
 int getErrorFlag();
+void semanticAnalysis();
 
 #endif

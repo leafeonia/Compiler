@@ -25,7 +25,6 @@ void hashInsert(char* name, void* val){
 
 void hashInsertDepth(char* name, void* val, int depth) {
 	unsigned int hash = hash_pjw(name) % HASH_SIZE; 
-	assert(hash < HASH_SIZE);
 	Entry* entry = (Entry*)malloc(sizeof(Entry));
 	entry->name = name;
 	entry->value = val;
@@ -35,6 +34,18 @@ void hashInsertDepth(char* name, void* val, int depth) {
 	if(hashtable[hash]) hashtable[hash]->prev = entry;
 	hashtable[hash] = entry;
 	depthPointers[depth] = entry;
+}
+
+void* hashRead(char* name){
+	unsigned int hash = hash_pjw(name) % HASH_SIZE;
+	Entry* entry = hashtable[hash];
+	while(entry){
+		if(strcmp(entry->name, name) == 0){
+			return entry->value;
+		}
+		entry = entry->next;
+	}
+	return NULL;
 }
 
 void pushDepth(){

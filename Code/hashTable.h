@@ -21,6 +21,7 @@ void init();
 unsigned int hash_pjw(char* name);
 void hashInsert(char* name, void* val);
 void hashInsertDepth(char* name, void* val, int depth);
+void* hashRead(char* name);
 void pushDepth();
 void popDepth();
 void printTable(); //for debug

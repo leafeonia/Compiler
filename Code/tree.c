@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "semantic.h"
 
 int errorFlag = 0; //0: no error  1: lex error  2: syntax error
 int endLine = 1;
@@ -101,5 +102,7 @@ void clear(){
 	doClear(root);
 }
 
-
+void semanticAnalysis(){
+	Program(root);
+}
 
