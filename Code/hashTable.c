@@ -1,6 +1,6 @@
 #include "hashTable.h"
 
-void init(){
+void hashInit(){
 	for(int i = 0;i < HASH_SIZE;i++){
 		hashtable[i] = NULL;
 	}

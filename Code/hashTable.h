@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #define HASH_SIZE 0x3fff
 #define DEPTH 64
 
@@ -17,7 +18,7 @@ Entry* hashtable[HASH_SIZE];
 Entry* depthPointers[DEPTH]; // for 2.2
 int curDepth;
 
-void init();
+void hashInit();
 unsigned int hash_pjw(char* name);
 void hashInsert(char* name, void* val);
 void hashInsertDepth(char* name, void* val, int depth);

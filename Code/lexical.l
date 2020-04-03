@@ -1,4 +1,5 @@
 %option yylineno
+%option noyywrap
 
 %{
 #include "tree.h"
