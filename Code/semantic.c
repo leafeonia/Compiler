@@ -2,11 +2,30 @@
 #include "hashTable.h"
 #include <string.h>
 
+int structFlag;
+int funcParamFlag;
 
 void Program(Node* root){
     if(!root) return;
     hashInit();
+    structFlag = funcParamFlag = 0;
     ExtDefList(root->child);
+
+    //for 2.1
+    for(int i = 0;i < HASH_SIZE;i++){
+        if(hashtable[i]){
+            Entry* cur = hashtable[i];
+            while(cur){
+                if(cur->value->kind->kind == FUNCTION){
+                    Function* func = (Function*) cur->value->val;
+                    if(func->status == DECLARE){
+                        printf("Error type 18 at Line %d: Undefined function \"%s\".\n", func->line, cur->name);
+                    }
+                }
+                cur = cur->next;
+            }
+        }
+    }
 }
 
 void ExtDefList(Node* root){
@@ -34,11 +53,28 @@ void ExtDef(Node* root){
         return;
     }
 
-    //Specifier FunDec CompSt
+
     if(strcmp(second->data, "FunDec") == 0){
-        FunDec(second, type);
-        CompSt(second->sibling, type, 0);
-        return;
+        //Specifier FunDec CompSt
+        if(!strcmp(second->sibling->data, "CompSt")){
+            funcParamFlag = 1;
+            pushDepth();
+            FunDec(second, type, 0);
+            funcParamFlag = 0;
+            CompSt(second->sibling, type, 0);
+            return;
+        }
+
+        //Specifier FunDec SEMI
+        else{
+            funcParamFlag = 1;
+            pushDepth();
+            FunDec(second, type, 1);
+            popDepth();
+            funcParamFlag = 0;
+            return;
+        }
+
     }
     assert(0);
 }
@@ -76,27 +112,34 @@ Type* StructSpecifier(Node* root){
         char* name = second->child->data;
         if(hashRead(name)){
             printf("Error type 16 at Line %d: Duplicated name \"%s\".\n", second->line, name);
+            free(ret);
             return NULL;
         }
         Node* fourth = second->sibling->sibling;
+        structFlag = 1;
         ret->u.structure = DefList(fourth);
+        structFlag = 0;
         if(!ret->u.structure){
             free(ret);
             return NULL;
         }
-        ret->u.structure->name = name;
-        if(name) hashInsert(name, ret);
+        if(name) {
+            Value* value = (Value*)malloc(sizeof(Value));
+            value->kind = ret;
+            value->val = NULL; // for structure, no other info need to record
+            hashInsert(name, value);
+        }
         return ret;
     }
 
     //STRUCT Tag
     if(strcmp(second->data, "Tag") == 0){
-        void* ret = hashRead(second->child->data);
+        Value* ret = hashRead(second->child->data);
         if(!ret){
             printf("Error type 17 at Line %d: Undefined structure \"%s\".\n",second->child->line, second->child->data);
             return NULL;
         }
-        return (Type*)ret;
+        return ret->kind;
     }
 
     return NULL;
@@ -114,17 +157,15 @@ void ExtDecList(Node* root, Type* type){
     }
 }
 
-void FunDec(Node* root, Type* type){
+void FunDec(Node* root, Type* type, int isDeclaration){
     if(!root || !root->child || !root->child->sibling || !root->child->sibling->sibling) return;
 
-
-    if(hashRead(root->child->data)){
+    Value* value = hashRead(root->child->data);
+    if(value && value->kind->kind == FUNCTION && ((Function*)(value->val))->status == DEFINE && !isDeclaration){
         printf("Error type 4 at Line %d: Redefined function \"%s\".\n", root->child->line, root->child->data);
         return;
     }
 
-    Function* function = (Function*)malloc(sizeof(Function));
-    function->returnType = type;
     Node* third = root->child->sibling->sibling;
 
     FieldList* args = NULL;
@@ -134,13 +175,35 @@ void FunDec(Node* root, Type* type){
     }
     //ID LP RP
 
-    function->arg = args;
-    hashInsertDepth(root->child->data, function, 0);
+    if(value && value->kind->kind == FUNCTION){
+        if(!fieldListEqual(args, ((Function*)(value->val))->arg)){
+            printf("Error type 19 at Line %d: Inconsistent declaration of function \"%s\".\n",root->child->line, root->child->data);
+            return;
+        }
+    }
+
+    if(!value){
+        Function* function = (Function*)malloc(sizeof(Function));
+        function->returnType = type;
+        function->line = root->child->line;
+        function->arg = args;
+        function->status = isDeclaration;
+        Value* val = (Value*)malloc(sizeof(Value));
+        Type* funcType = (Type*)malloc(sizeof(Type));
+        funcType->kind = FUNCTION;
+        val->kind = funcType;
+        val->val = function;
+        hashInsertDepth(root->child->data, val, 0);
+    }
+
+    if(value && value->kind->kind == FUNCTION && ((Function*)(value->val))->status == DECLARE && !isDeclaration){
+        ((Function*)(value->val))->status = DEFINE;
+    }
+
 }
 
 FieldList* VarList(Node* root){
     if(!root || !root->child) return NULL;
-    pushDepth();
     FieldList* ret = ParamDec(root->child);
     if(!ret) return NULL;
     //ParamDec
@@ -159,8 +222,84 @@ FieldList* ParamDec(Node* root){
     return VarDec(root->child->sibling, type);
 }
 
-void CompSt(Node* root, Type* type, int addLevel){
+void CompSt(Node* root, Type* returnType, int addLevel){
+    if(!root || !root->child || !root->child->sibling || !root->child->sibling->sibling) return;
+
+    //LC DefList(**Could be empty**) StmtList RC
+    if(addLevel) pushDepth();
+    if(!strcmp(root->child->sibling->data, "DefList")){
+        DefList(root->child->sibling);
+        StmtList(root->child->sibling->sibling, returnType);
+    }
+    else{
+        StmtList(root->child->sibling, returnType);
+    }
     popDepth();
+}
+
+void StmtList(Node* root, Type* returnType){
+    if(!root) return;
+    Stmt(root->child, returnType);
+    StmtList(root->child->sibling, returnType);
+}
+
+void Stmt(Node* root, Type* returnType){
+    if(!root) return;
+    char* keyword = root->child->data;
+
+    //Exp SEMI
+    if(!strcmp(keyword, "Exp")){
+        Exp(root->child);
+        return;
+    }
+
+    //CompSt
+    if(!strcmp(keyword, "CompSt")){
+        CompSt(root->child, returnType, 1);
+        return;
+    }
+
+    //RETURN Exp SEMI
+    if(!strcmp(keyword, "RETURN")){
+        Type* expType = Exp(root->child->sibling);
+        if(!typeEqual(expType, returnType)){
+            printf("Error type 8 at Line %d: Type mismatched for return.\n", root->child->sibling->line);
+        }
+        return;
+    }
+
+
+    //IF LP Exp RP Stmt
+    //IF LP Exp RP Stmt ELSE Stmt
+    if(!strcmp(keyword, "IF")){
+        Node* third = root->child->sibling->sibling;
+        Type* type = Exp(third);
+        if(!type) return;
+        if(type->kind != BASIC || type->u.basic != BASIC_INT){
+            printf("Error type 11 at Line %d: Not an integer in if statement.\n", third->line);
+            return;
+        }
+        Node* fifth = third->sibling->sibling;
+        Stmt(fifth, returnType);
+        if(fifth->sibling) Stmt(fifth->sibling->sibling, returnType);
+        return;
+    }
+
+    //WHILE LP Exp RP Stmt
+    if(!strcmp(keyword, "WHILE")){
+        Node* third = root->child->sibling->sibling;
+        Type* type = Exp(third);
+        if(type->kind != BASIC || type->u.basic != BASIC_INT){
+            printf("Error type 11 at Line %d: Not an integer in while statement.\n", third->line);
+            return;
+        }
+        Node* fifth = third->sibling->sibling;
+        Stmt(fifth, returnType);
+        return;
+    }
+
+    assert(0);
+    return;
 }
 
 FieldList* DefList(Node* root){
@@ -201,6 +340,10 @@ FieldList* Dec(Node* root, Type* type){
 
     //VarDec ASSIGNOP Exp
     if(root->child->sibling){
+        if(structFlag){
+            printf("Error type 15 at Line %d: Cannot assign value in struct definition.\n", root->child->line);
+            return 0;
+        }
         Type* expType = Exp(root->child->sibling->sibling);
         if(!expType) return NULL;
         if(!typeEqual(ret->type, expType)){
@@ -219,14 +362,20 @@ FieldList* VarDec(Node* root, Type* type){
     if(root->child->type == ENUM_ID){
         FieldList* ret = (FieldList*)malloc(sizeof(FieldList));
         ret->name = root->child->data;
-        if(hashRead(ret->name)){
-            printf("Error type 3 at Line %d: Redefined variable \"%s\".\n", root->child->line, ret->name);
+        Value* readVal = hashRead(ret->name);
+        if(readVal && readVal->depth == curDepth){
+            if(structFlag) printf("Error type 15 at Line %d: Redefined field \"%s\".\n",root->child->line, ret->name);
+            else printf("Error type 3 at Line %d: Redefined variable \"%s\".\n", root->child->line, ret->name);
             free(ret);
             return NULL;
         }
         ret->type = type;
         ret->next = NULL;
-        hashInsert(ret->name, ret->type);
+        Value* value = (Value*)malloc(sizeof(Value));
+        value->kind = type;
+        value->val = ret;
+        //if(!funcParamFlag) hashInsert(ret->name, value);
+        hashInsert(ret->name, value);
         return ret;
     }
 
@@ -252,11 +401,49 @@ Type* Exp(Node* root){
 
         // Exp ASSIGNOP Exp
         if(strcmp(keyword, "ASSIGNOP") == 0){
-            Type* type1 = Exp(root->child);
-            Type* type2 = Exp(root->child->sibling->sibling);
+            Node* child = root->child;
+            int error6 = 0;
+            Node* first = child->child;
+            if(!first) error6 = 1;
+            else{
+                if(!first->sibling){
+                    //ID
+                    if(first->type != ENUM_ID) error6 = 1;
+                }
+                else{
+                    Node* second = first->sibling;
+                    if(!second) error6 = 1;
+                    else{
+                        Node* third = second->sibling;
+                        if(!third) error6 = 1;
+                        else{
+                            Node* fourth = third->sibling;
+                            if(fourth){
+                                //Exp LB Exp RB
+                                if(!(!strcmp(first->data, "Exp") && !strcmp(second->data, "LB") && !strcmp(third->data, "Exp") && !strcmp(fourth->data, "RB"))){
+                                    error6 = 1;
+                                }
+
+                            }
+                            //Exp DOT ID
+                            else{
+                                if(!(!strcmp(first->data, "Exp") && !strcmp(second->data, "DOT") && third->type == ENUM_ID)){
+                                    error6 = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if(error6){
+                printf("Error type 6 at Line %d: The left-hand side of an assignment must be a variable.\n", child->line);
+                return NULL;
+            }
+            Type* type1 = Exp(child);
+            Type* type2 = Exp(child->sibling->sibling);
             if(!type1 || !type2) return NULL;
             if(!typeEqual(type1, type2)){
-                printf("Error type 5 at Line %d: Type mismatched for assignment.\n", root->child->line);
+                printf("Error type 5 at Line %d: Type mismatched for assignment.\n", child->line);
                 return NULL;
             }
             return type1;
@@ -297,7 +484,7 @@ Type* Exp(Node* root){
             Type* type = Exp(root->child);
             if(!type) return NULL;
             if(type->kind != STRUCTURE){
-                printf("Error type 13 at Line %d: Illegal use of \".\"\n", root->child->line);
+                printf("Error type 13 at Line %d: Illegal use of \".\".\n", root->child->line);
                 return NULL;
             }
             char* field = root->child->sibling->sibling->data;
@@ -333,7 +520,7 @@ Type* Exp(Node* root){
         Type* type = Exp(root->child->sibling);
         if(!type) return NULL;
         if(type->kind != BASIC){
-            printf("Error type 7 at Line %d: Operands type mismatched\n", root->child->sibling->line);
+            printf("Error type 7 at Line %d: Operands type mismatched.\n", root->child->sibling->line);
             return NULL;
         }
         return type;
@@ -344,37 +531,58 @@ Type* Exp(Node* root){
         Type* type = Exp(root->child->sibling);
         if(!type) return NULL;
         if(type->kind != BASIC || type->u.basic != BASIC_INT){
-            printf("Error type 7 at Line %d: Operands type mismatched\n", root->child->sibling->line);
+            printf("Error type 7 at Line %d: Operands type mismatched.\n", root->child->sibling->line);
             return NULL;
         }
         return type;
     }
 
-    if(!strcmp(root->child->data, "ID")){
+    if(root->child->type == ENUM_ID){
+        char* name = root->child->data;
         //ID
         if(!root->child->sibling){
-            Type* varType = (Type*)hashRead(root->child->data);
-            if(!varType){
-                printf("Error type 1 at Line %d: Undefined variable \"%s\".\n", root->child->line, root->child->data);
+            Value* value = hashRead(name);
+            if(!value && !funcParamFlag){
+                printf("Error type 1 at Line %d: Undefined variable \"%s\".\n", root->child->line, name);
                 return NULL;
             }
-            return varType;
+            return value->kind;
         }
 
         Node* third = root->child->sibling->sibling;
         if(!third) return NULL;
 
         //ID LP RP
-        if(!strcmp(third->data, "RP")){
-
+        //ID LP Args RP
+        if(!strcmp(root->child->sibling->data, "LP")){
+            Value* value = hashRead(name);
+            if(!value){
+                printf("Error type 2 at Line %d: Undefined function \"%s\".\n", root->child->line, name);
+                return NULL;
+            }
+            if(value->kind->kind != FUNCTION){
+                printf("Error type 11 at Line %d: \"%s\" is not a function.\n", root->child->line, root->child->data);
+                return NULL;
+            }
+            if(!strcmp(third->data, "Args")){
+                FieldList* arg = Args(third);
+                FieldList* arg2 = ((Function*)(value->val))->arg;
+                if(!fieldListEqual(arg, arg2)) {
+                    printf("Error type 9 at Line %d: Function\"%s\" is not applicable for given arguments.\n",
+                           third->line, name);
+                    return NULL;
+                }
+            }
+            return ((Function*)(value->val))->returnType;
         }
 
+        assert(0);
         return NULL;
 
     }
 
     //INT
-    if(!strcmp(root->child->data, "INT")){
+    if(root->child->type == ENUM_INT){
         Type* ret = (Type*)malloc(sizeof(Type));
         ret->kind = BASIC;
         ret->u.basic = BASIC_INT;
@@ -382,7 +590,7 @@ Type* Exp(Node* root){
     }
 
     //FLOAT
-    if(!strcmp(root->child->data, "FLOAT")){
+    if(root->child->type == ENUM_FLOAT){
         Type* ret = (Type*)malloc(sizeof(Type));
         ret->kind = BASIC;
         ret->u.basic = BASIC_FLOAT;
@@ -390,6 +598,20 @@ Type* Exp(Node* root){
     }
 
     return NULL;
+}
+
+FieldList* Args(Node* root){
+    if(!root || !root->child) return NULL;
+    //Exp
+    //Exp COMMA Args
+    FieldList* ret = (FieldList*)malloc(sizeof(FieldList));
+    ret->type = Exp(root->child);
+
+    if(root->child->sibling){
+        ret->next = Args(root->child->sibling->sibling);
+    }
+    else ret->next = NULL;
+    return ret;
 }
 
 int typeEqual(Type* type1, Type* type2){
@@ -402,46 +624,18 @@ int typeEqual(Type* type1, Type* type2){
         return typeEqual(type1->u.array.elem, type2->u.array.elem);
     }
     if(type1->kind == STRUCTURE){
-        FieldList* f1 = type1->u.structure;
-        FieldList* f2 = type2->u.structure;
-        if(!f1 || !f2) return 0;
-        while(f1 && f2){
-            if(!typeEqual(f1->type, f2->type)) return 0;
-            f1 = f1->next;
-            f2 = f2->next;
-        }
-        if(f1 || f2) return 0;
-        return 1;
-
+        return fieldListEqual(type1->u.structure, type2->u.structure);
     }
-    assert(0);
     return 0;
 }
 
-void test(){
-    hashInsert("1", NULL);
-    printTable();
-    hashInsert("2", NULL);
-    hashInsert("3", NULL);
-    hashInsert("4", NULL);
-    hashInsert("5", NULL);
-    printTable();
-    pushDepth();
-    hashInsert("1", NULL);
-    hashInsert("2", NULL);
-    hashInsert("3", NULL);
-    hashInsert("4", NULL);
-    printTable();
-    hashInsertDepth("6", NULL, 0);
-    printTable();
-    pushDepth();
-    hashInsert("21", NULL);
-    hashInsert("22", NULL);
-    printTable();
-    popDepth();
-    printTable();
-    hashInsert("15", NULL);
-    printTable();
-    popDepth();
-    printTable();
+int fieldListEqual(FieldList* f1, FieldList* f2){
+    if(!f1 || !f2) return 0;
+    while(f1 && f2){
+        if(!typeEqual(f1->type, f2->type)) return 0;
+        f1 = f1->next;
+        f2 = f2->next;
+    }
+    if(f1 || f2) return 0;
+    return 1;
 }

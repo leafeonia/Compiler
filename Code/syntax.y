@@ -53,6 +53,11 @@ ExtDef : Specifier ExtDecList SEMI{
 	insert($$, $1);
 	insert($$, $2);
 	insert($$, $3);
+}	|	Specifier FunDec SEMI{
+	$$ = initNode(NONTERMINAL, "ExtDef", @$.first_line);
+	insert($$, $1);
+	insert($$, $2);
+	insert($$, $3);
 }	|	error SEMI{}
 	|	Specifier error ExtDef{}
 	;

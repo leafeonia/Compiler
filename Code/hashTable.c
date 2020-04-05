@@ -19,14 +19,15 @@ unsigned int hash_pjw(char* name){
 	return val % HASH_SIZE;
 }
 
-void hashInsert(char* name, void* val){
+void hashInsert(char* name, Value* val){
 	hashInsertDepth(name, val, curDepth);
 }
 
-void hashInsertDepth(char* name, void* val, int depth) {
+void hashInsertDepth(char* name, Value* val, int depth) {
 	unsigned int hash = hash_pjw(name) % HASH_SIZE; 
 	Entry* entry = (Entry*)malloc(sizeof(Entry));
 	entry->name = name;
+	val->depth = depth;
 	entry->value = val;
 	entry->next = !hashtable[hash] ? NULL : hashtable[hash];
 	entry->crossNext = !depthPointers[curDepth] ? NULL : depthPointers[depth];
@@ -58,6 +59,7 @@ void popDepth(){
 	while(entry){
 		Entry* del = entry;
 		entry = entry->crossNext;
+		depthPointers[curDepth] = entry;
 		if(del->prev){
 			del->prev->next = del->next;
 		}
