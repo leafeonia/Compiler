@@ -16,7 +16,7 @@ void Program(Node* root){
         if(hashtable[i]){
             Entry* cur = hashtable[i];
             while(cur){
-                if(cur->value->kind->kind == FUNCTION){
+                if(cur->value->kind && cur->value->kind->kind == FUNCTION){
                     Function* func = (Function*) cur->value->val;
                     if(func->status == DECLARE){
                         printf("Error type 18 at Line %d: Undefined function \"%s\".\n", func->line, cur->name);
@@ -116,13 +116,15 @@ Type* StructSpecifier(Node* root){
             return NULL;
         }
         Node* fourth = second->sibling->sibling;
-        structFlag = 1;
+        structFlag++;
         ret->u.structure = DefList(fourth);
-        structFlag = 0;
-        if(!ret->u.structure){
-            free(ret);
-            return NULL;
-        }
+        structFlag--;
+
+        //struct A{};
+//        if(!ret->u.structure){
+//            free(ret);
+//            return NULL;
+//        }
         if(name) {
             Value* value = (Value*)malloc(sizeof(Value));
             value->kind = ret;
@@ -153,7 +155,7 @@ void ExtDecList(Node* root, Type* type){
 
     // VarDec COMMA ExtDecList
     if(root->child->sibling){
-        ExtDecList(root->child->sibling, type);
+        ExtDecList(root->child->sibling->sibling, type);
     }
 }
 
@@ -176,9 +178,8 @@ void FunDec(Node* root, Type* type, int isDeclaration){
     //ID LP RP
 
     if(value && value->kind->kind == FUNCTION){
-        if(!fieldListEqual(args, ((Function*)(value->val))->arg)){
+        if(!fieldListEqual(args, ((Function*)(value->val))->arg) || !typeEqual(type, ((Function*)(value->val))->returnType)){
             printf("Error type 19 at Line %d: Inconsistent declaration of function \"%s\".\n",root->child->line, root->child->data);
-            return;
         }
     }
 
@@ -240,7 +241,7 @@ void CompSt(Node* root, Type* returnType, int addLevel){
 void StmtList(Node* root, Type* returnType){
     if(!root) return;
     Stmt(root->child, returnType);
-    StmtList(root->child->sibling, returnType);
+    if(root->child) StmtList(root->child->sibling, returnType);
 }
 
 void Stmt(Node* root, Type* returnType){
@@ -274,8 +275,8 @@ void Stmt(Node* root, Type* returnType){
     if(!strcmp(keyword, "IF")){
         Node* third = root->child->sibling->sibling;
         Type* type = Exp(third);
-        if(!type) return;
-        if(type->kind != BASIC || type->u.basic != BASIC_INT){
+        //if(!type) return;
+        if(type && (type->kind != BASIC || type->u.basic != BASIC_INT)){
             printf("Error type 11 at Line %d: Not an integer in if statement.\n", third->line);
             return;
         }
@@ -289,6 +290,7 @@ void Stmt(Node* root, Type* returnType){
     if(!strcmp(keyword, "WHILE")){
         Node* third = root->child->sibling->sibling;
         Type* type = Exp(third);
+        if(!type) return;
         if(type->kind != BASIC || type->u.basic != BASIC_INT){
             printf("Error type 11 at Line %d: Not an integer in while statement.\n", third->line);
             return;
@@ -342,7 +344,7 @@ FieldList* Dec(Node* root, Type* type){
     if(root->child->sibling){
         if(structFlag){
             printf("Error type 15 at Line %d: Cannot assign value in struct definition.\n", root->child->line);
-            return 0;
+            return ret;
         }
         Type* expType = Exp(root->child->sibling->sibling);
         if(!expType) return NULL;
@@ -363,7 +365,7 @@ FieldList* VarDec(Node* root, Type* type){
         FieldList* ret = (FieldList*)malloc(sizeof(FieldList));
         ret->name = root->child->data;
         Value* readVal = hashRead(ret->name);
-        if(readVal && readVal->depth == curDepth){
+        if(readVal && (readVal->depth == curDepth || readVal->kind->kind == STRUCTURE || readVal->kind->kind == FUNCTION)){
             if(structFlag) printf("Error type 15 at Line %d: Redefined field \"%s\".\n",root->child->line, ret->name);
             else printf("Error type 3 at Line %d: Redefined variable \"%s\".\n", root->child->line, ret->name);
             free(ret);
@@ -376,6 +378,7 @@ FieldList* VarDec(Node* root, Type* type){
         value->val = ret;
         //if(!funcParamFlag) hashInsert(ret->name, value);
         hashInsert(ret->name, value);
+
         return ret;
     }
 
@@ -495,7 +498,7 @@ Type* Exp(Node* root){
                 }
                 fieldList = fieldList->next;
             }
-            printf("Error type 14 at Line %d: Non-existent field \"%s\".", root->child->sibling->sibling->line, field);
+            printf("Error type 14 at Line %d: Non-existent field \"%s\".\n", root->child->sibling->sibling->line, field);
             return NULL;
         }
 
@@ -568,7 +571,7 @@ Type* Exp(Node* root){
                 FieldList* arg = Args(third);
                 FieldList* arg2 = ((Function*)(value->val))->arg;
                 if(!fieldListEqual(arg, arg2)) {
-                    printf("Error type 9 at Line %d: Function\"%s\" is not applicable for given arguments.\n",
+                    printf("Error type 9 at Line %d: Function \"%s\" is not applicable for given arguments.\n",
                            third->line, name);
                     return NULL;
                 }
@@ -615,6 +618,7 @@ FieldList* Args(Node* root){
 }
 
 int typeEqual(Type* type1, Type* type2){
+    if(!type1 && !type2) return 1;
     if(!type1 || !type2) return 0;
     if(type1->kind != type2->kind) return 0;
     if(type1->kind == BASIC){
