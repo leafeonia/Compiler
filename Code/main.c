@@ -9,10 +9,16 @@ int main(int argc, char** argv){
 		perror(argv[1]);
 		return 1;
 	}
+	FILE* irFile = fopen(argv[2], "w");
+	if(!irFile){
+		perror(argv[2]);
+		return 1;
+	}
 	yyrestart(f);
 	yyparse();
 	//printTree();
 	semanticAnalysis();
+	irGenerate(irFile);
 	clear();
 	return 0;
 }

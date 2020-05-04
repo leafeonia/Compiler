@@ -3,6 +3,8 @@
 
 #define LEN_DATA 64
 
+#include <stdio.h>
+
 typedef struct Node{
 	struct Node* child;
 	struct Node* sibling;
@@ -24,5 +26,6 @@ void clear();
 void setError(int val); 
 int getErrorFlag();
 void semanticAnalysis();
+void irGenerate(FILE* fp);
 
 #endif

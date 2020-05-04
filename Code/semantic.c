@@ -133,6 +133,16 @@ Type* StructSpecifier(Node* root){
         }
         return ret;
     }
+    
+    if(strcmp(second->data, "LC") == 0){
+        Type* ret = (Type*)malloc(sizeof(Type));
+        ret->kind = STRUCTURE;
+        Node* third = second->sibling;
+        structFlag++;
+        ret->u.structure = DefList(third);
+        structFlag--;
+        return ret;
+    }
 
     //STRUCT Tag
     if(strcmp(second->data, "Tag") == 0){
