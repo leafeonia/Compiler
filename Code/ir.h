@@ -8,7 +8,7 @@ typedef struct Operand_ Operand;
 typedef struct InterCode_ InterCode;
 
 struct Operand_{
-	enum {OP_VALUE} kind;
+	enum {OP_VALUE, OP_TEMPVAR} kind;
 	union{
 		int var_no;
 		char* value;
@@ -16,7 +16,7 @@ struct Operand_{
 };
 
 typedef struct InterCode_{
-	enum {I_FUNCTION,ASSIGN, ADD, SUB, MUL} kind;
+	enum {I_FUNCTION,I_ASSIGN, I_ADD, I_SUB, I_MUL} kind;
 	union{
 		Operand* singleOp;
 		struct {Operand* left; Operand* right;} assign;
@@ -28,7 +28,7 @@ typedef struct InterCode_{
 
 InterCode* irHead = NULL;
 InterCode* irTail = NULL;
-
+int curVarNo = 0;
 
 void irProgram(Node* root);
 void irExtDefList(Node* root);
@@ -39,6 +39,8 @@ void irInsert(InterCode* intercode);
 void irDelete(InterCode* intercode);
 void irPrintOperand(Operand* op, FILE* fp);
 void irPrintCode(FILE* fp);
+void irExp(Node* root, Operand* op);
+int getVarNo();
 
 #endif
 
