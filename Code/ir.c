@@ -103,8 +103,6 @@ void irExtDefList(Node* root){
 
 void irExtDef(Node* root){
 	if(!root) return;
-    //Type* type = Specifier(root->child);
-    //if(!type) return;
     Node* second = root->child->sibling;
     if(!second) return;
 
@@ -140,7 +138,14 @@ void irFunDec(Node* root){
 	intercode->kind = I_FUNCTION;
 	intercode->u.singleOp = op;
 	irInsert(intercode);
-	//TODO: args
+	Value* value = hashRead(root->child->data);
+	Function* function = (Function*)value->val;
+	FieldList* args = function->arg;
+	while (args){
+	    Operand* arg = newOp(OP_VALUE, args->name);
+	    newIc1(I_PARAM, arg);
+	    args = args->next;
+	}
 }
 
 void irCompSt(Node* root){
@@ -393,6 +398,11 @@ void irExp(Node* root, Operand* place){
         }
 	}
 
+	//LP Exp RP
+    else if(!strcmp(root->child->data, "LP")){
+        irExp(root->child->sibling, place);
+    }
+
 	//MINUS Exp
 	else if(!strcmp(root->child->data, "MINUS")){
 	    int no = getVarNo();
@@ -445,16 +455,6 @@ void irExp(Node* root, Operand* place){
         		irInsert(ic);
         		return;
         	}
-        	if(place){
-        		Operand* op = (Operand*)malloc(sizeof(Operand));
-        		op->kind = OP_VALUE;
-        		op->u.value = name;
-        		InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
-        		ic->kind = I_CALL;
-        		ic->u.assign.left = place;
-        		ic->u.assign.right = op;
-        		irInsert(ic);
-        	}
 
             if(!strcmp(third->data, "Args")){
             	List* argList = (List*)malloc(sizeof(List));
@@ -490,15 +490,19 @@ void irExp(Node* root, Operand* place){
 		    		ic->kind = I_ARG;
 		    		ic->u.singleOp = op;
 		    		irInsert(ic);
+		    		argList = argList->next;
                 }
-                
+            }
+
+            if(place){
                 Operand* op = (Operand*)malloc(sizeof(Operand));
                 op->kind = OP_VALUE;
                 op->u.value = name;
                 InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
-		    	ic->kind = I_FUNCTION;
-		    	ic->u.singleOp = op;
-		   		irInsert(ic);
+                ic->kind = I_CALL;
+                ic->u.assign.left = place;
+                ic->u.assign.right = op;
+                irInsert(ic);
             }
         }
     }
@@ -625,6 +629,11 @@ void irPrintCode(FILE* fp){
 				irPrintOperand(cur->u.triop.op2, fp);
 				fprintf(fp, "GOTO ");
 				irPrintOperand(cur->u.triop.op3, fp);
+				break;
+            case I_PARAM:
+                fprintf(fp, "PARAM ");
+                irPrintOperand(cur->u.singleOp, fp);
+                break;
 			default:
 				break;
 				

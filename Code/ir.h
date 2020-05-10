@@ -17,7 +17,7 @@ struct Operand_{
 };
 
 struct InterCode_{
-	enum {I_FUNCTION, I_ASSIGN, I_READ, I_WRITE, I_CALL, I_ARG, I_RETURN, I_LABEL, I_GOTO, I_IFGOTO, I_ADD, I_MINUS, I_STAR, I_DIV} kind;
+	enum {I_FUNCTION, I_PARAM, I_ASSIGN, I_READ, I_WRITE, I_CALL, I_ARG, I_RETURN, I_LABEL, I_GOTO, I_IFGOTO, I_ADD, I_MINUS, I_STAR, I_DIV} kind;
 	union{
 		Operand* singleOp;
 		struct {Operand* left; Operand* right;} assign;
