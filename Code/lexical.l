@@ -35,7 +35,12 @@ _wordDigit [_0-9a-zA-Z]
 ";"     						{ INIT("SEMI"); return SEMI;}
 ","								{ INIT("COMMA"); return COMMA;}
 "="								{ INIT("ASSIGNOP"); return ASSIGNOP;}
-">"|"<"|">="|"<="|"=="|"!="		{ INIT("RELOP"); return RELOP;}
+">"								{ INIT(">"); return RELOP;}
+"<"								{ INIT("<"); return RELOP;}
+">="							{ INIT(">="); return RELOP;}
+"<="							{ INIT("<="); return RELOP;}
+"=="							{ INIT("=="); return RELOP;}
+"!="							{ INIT("!="); return RELOP;}
 "+"								{ INIT("PLUS"); return PLUS;}
 "-"								{ INIT("MINUS"); return MINUS;}
 "*"								{ INIT("STAR"); return STAR;}

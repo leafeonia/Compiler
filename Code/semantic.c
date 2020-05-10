@@ -568,6 +568,7 @@ Type* Exp(Node* root){
         //ID LP RP
         //ID LP Args RP
         if(!strcmp(root->child->sibling->data, "LP")){
+        	if(!strcmp(name, "read") || !strcmp(name, "write")) return NULL;
             Value* value = hashRead(name);
             if(!value){
                 printf("Error type 2 at Line %d: Undefined function \"%s\".\n", root->child->line, name);
