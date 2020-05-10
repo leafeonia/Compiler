@@ -149,7 +149,7 @@ void irCompSt(Node* root){
     //LC DefList(**Could be empty**) StmtList RC
 
     if(!strcmp(root->child->sibling->data, "DefList")){
-        //irDefList(root->child->sibling);
+        irDefList(root->child->sibling);
         irStmtList(root->child->sibling->sibling);
     }
     else{
@@ -157,7 +157,7 @@ void irCompSt(Node* root){
     }
 }
 
-/*
+
 void irDefList(Node* root){
 	if(!root || !root->child) return;
 	irDef(root->child);
@@ -171,18 +171,20 @@ void irDef(Node* root){
 
 void irDecList(Node* root){
 	if(!root || !root->child) return;
-    ret = irDec(root->child);
-    if(root->child->sibling) irDecList(root->child->sibling->sibling, type);
+    irDec(root->child);
+    if(root->child->sibling) irDecList(root->child->sibling->sibling);
 }
 
 void irDec(Node* root){
 	if(!root || !root->child) return;
-	//TODO: ignore here when assign?
-	//Value* val = hashRead(root->child->child);
+	//TODO: ARRAY
 	if(root->child->sibling){
-		
+        Operand* op = newOp(OP_VALUE, root->child->child->data);
+        Operand* place = newOp2(OP_TEMPVAR, getVarNo());
+        irExp(root->child->sibling->sibling, place);
+        newIc2(I_ASSIGN, op, place);
 	}
-}*/
+}
 
 void irStmtList(Node* root){
 	if(!root || !root->child) return;
