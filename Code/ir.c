@@ -6,6 +6,8 @@ InterCode* irHead = NULL;
 InterCode* irTail = NULL;
 int curVarNo = 0;
 int curLabelNo = 0;
+Operand* sp;
+Operand* zero;
 
 Operand* newOp(int kind, char* value){
 	Operand* op = (Operand*)malloc(sizeof(Operand));
@@ -91,7 +93,13 @@ void irDelete(InterCode* intercode){
 	free(intercode);
 }
 
+void initOp(){
+    sp = newOp(OP_VALUE, "sp");
+    zero = newOp(OP_NUM, 0);
+}
+
 void irProgram(Node* root){
+    initOp();
 	irExtDefList(root->child);
 }
 
@@ -182,13 +190,55 @@ void irDecList(Node* root){
 
 void irDec(Node* root){
 	if(!root || !root->child) return;
-	//TODO: ARRAY
+	FieldList* fieldList = irVarDec(root->child, NULL);
+	Type* retType = fieldList->type;
+	int size = 1;
+    while (retType){
+        if(retType->kind == ARRAY) size *= retType->u.array.size;
+        retType = retType->u.array.elem;
+    }
+    if (size > 1){
+        Operand* var = newOp(OP_VALUE, fieldList->name);
+        Operand* num = newOp2(OP_NUM2, size*4);
+        newIc2(I_DEC, var, num);
+    }
+
 	if(root->child->sibling){
-        Operand* op = newOp(OP_VALUE, root->child->child->data);
+        Operand* op = newOp(OP_VALUE, fieldList->name);
         Operand* place = newOp2(OP_TEMPVAR, getVarNo());
         irExp(root->child->sibling->sibling, place);
         newIc2(I_ASSIGN, op, place);
 	}
+}
+
+FieldList* irVarDec(Node* root, Type* type){
+    if(!root || !root->child) return NULL;
+
+    //ID
+    if(root->child->type == ENUM_ID){
+        FieldList* ret = (FieldList*)malloc(sizeof(FieldList));
+        ret->name = root->child->data;
+        ret->type = type;
+        ret->next = NULL;
+        Value* value = (Value*)malloc(sizeof(Value));
+        value->kind = type;
+        value->val = ret;
+        hashInsert(ret->name, value);
+        return ret;
+    }
+
+    //VarDec LB INT RB
+    else if(!strcmp(root->child->data, "VarDec")){
+        int num = atoi(root->child->sibling->sibling->data);
+        Type* childType = (Type*)malloc(sizeof(Type));
+        childType->kind = ARRAY;
+        childType->u.array.elem = type;
+        childType->u.array.size = num;
+        return irVarDec(root->child, childType);
+    }
+
+    assert(0);
+    return NULL;
 }
 
 void irStmtList(Node* root){
@@ -326,13 +376,16 @@ void irCond(Node* root, Operand* labelTrue, Operand* labelFalse){
 		Operand* temp = newOp2(OP_TEMPVAR, getVarNo());
 		irExp(root, temp);
 		Operand* relop = newOp(OP_VALUE, "!=");
-		Operand* zero = newOp(OP_CONSTANT, "0");
 		newIc4(I_IFGOTO, temp, relop, zero, labelTrue);
 		newIc1(I_GOTO, labelFalse);
 	}
 }
 
 void irExp(Node* root, Operand* place){
+    irRealExp(root, place, 0);
+}
+
+void irRealExp(Node* root, Operand* place, int depth){
 	if(!root || !root->child) return;
 	
 	if(!strcmp(root->child->data, "Exp") || !strcmp(root->child->data, "NOT")){
@@ -388,13 +441,44 @@ void irExp(Node* root, Operand* place){
         !strcmp(keyword, "Exp")){
             Operand* label1 = newOp2(OP_LABEL, getLabelNo());
             Operand* label2 = newOp2(OP_LABEL, getLabelNo());
-            Operand* zero = newOp(OP_CONSTANT, "0");
             InterCode* ic = newIc2(I_ASSIGN, place, zero);
             irCond(root, label1, label2);
             InterCode* ic2 = newIc1(I_LABEL, label1);
             Operand* one = newOp(OP_CONSTANT, "1");
             newIc2(I_ASSIGN, place, one);
             newIc1(I_LABEL, label2);
+        }
+
+        //Exp LB Exp RB
+        if(!strcmp(keyword, "LB")){
+            if(depth == 0){
+                newIc2(I_ASSIGN, sp, zero);
+            }
+            Operand* t1 = newOp2(OP_TEMPVAR, getVarNo());
+            irExp(root->child->sibling->sibling, t1);
+            int size = 1;
+            Node* hook = root->child;
+            while(!(strcmp(hook->data, "Exp")))
+                hook = hook->child;
+            Value* value = hashRead(hook->data);
+            assert(value);
+            FieldList* fieldList = (FieldList*)(value->val);
+            Type* type = fieldList->type;
+            int totDepth = 0;
+            Type* temp = type;
+            while(temp){
+                temp = temp->u.array.elem;
+                totDepth++;
+            }
+            for(int i = 0;i < totDepth;i++){
+                if(i >= totDepth - depth) size *= type->u.array.size;
+                type = type->u.array.elem;
+            }
+            Operand* num = newOp2(OP_NUM, 4 * size);
+            Operand* t2 = newOp2(OP_TEMPVAR, getVarNo());
+            newIc3(I_STAR, t2, t1, num);
+            newIc3(I_ADD, sp, sp, t2);
+            irRealExp(root->child, place, depth+1);
         }
 	}
 
@@ -431,14 +515,17 @@ void irExp(Node* root, Operand* place){
     	
     	//ID
     	if(!root->child->sibling){
-    		Operand* op = (Operand*)malloc(sizeof(Operand));
-		    op->kind = OP_VALUE;
-		    op->u.value = root->child->data;
-		    InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
-		    ic->kind = I_ASSIGN;
-		    ic->u.assign.left = place;
-		    ic->u.assign.right = op;
-		    irInsert(ic);
+    	    if(depth == 0){
+                Operand* op = newOp(OP_VALUE, root->child->data);
+                InterCode* ic = newIc2(I_ASSIGN, place, op);
+    	    }
+    		else{
+    		    Operand* t1 = newOp(OP_VALUE, "tAddr");
+    		    Operand* addr = newOp(OP_ADDR, root->child->data);
+    		    newIc3(I_ADD, t1, addr, sp);
+    		    Operand* t2 = newOp(OP_DEREF, "tAddr");
+    		    newIc2(I_ASSIGN, place, t2);
+    		}
 		    return;
     	}
     	
@@ -540,9 +627,21 @@ void irPrintOperand(Operand* op, FILE* fp){
 		case OP_CONSTANT:
 			fprintf(fp, "#%s ", op->u.value);
 			break;
+        case OP_NUM:
+            fprintf(fp, "#%d ", op->u.var_no);
+            break;
 		case OP_LABEL:
 			fprintf(fp, "label%d ", op->u.var_no);
 			break;
+        case OP_ADDR:
+            fprintf(fp, "&%s ", op->u.value);
+            break;
+        case OP_DEREF:
+            fprintf(fp, "*%s ", op->u.value);
+            break;
+        case OP_NUM2:
+            fprintf(fp, "%d ", op->u.var_no);
+            break;
 		default:
 			break;
 	}
@@ -633,6 +732,11 @@ void irPrintCode(FILE* fp){
             case I_PARAM:
                 fprintf(fp, "PARAM ");
                 irPrintOperand(cur->u.singleOp, fp);
+                break;
+            case I_DEC:
+                fprintf(fp, "DEC ");
+                irPrintOperand(cur->u.assign.left, fp);
+                irPrintOperand(cur->u.assign.right, fp);
                 break;
 			default:
 				break;
