@@ -8,6 +8,7 @@ int curVarNo = 0;
 int curLabelNo = 0;
 Operand* sp;
 Operand* zero;
+Type* dummy;
 
 Operand* newOp(int kind, char* value){
 	Operand* op = (Operand*)malloc(sizeof(Operand));
@@ -96,6 +97,8 @@ void irDelete(InterCode* intercode){
 void initOp(){
     sp = newOp(OP_VALUE, "sp");
     zero = newOp(OP_NUM, 0);
+    dummy = (Type*)malloc(sizeof(Type));
+    dummy->u.basic = -1;
 }
 
 void irProgram(Node* root){
@@ -150,10 +153,30 @@ void irFunDec(Node* root){
 	Function* function = (Function*)value->val;
 	FieldList* args = function->arg;
 	while (args){
-	    Operand* arg = newOp(OP_VALUE, args->name);
+	    Operand* arg = newOp(OP_VAR, args->name);
 	    newIc1(I_PARAM, arg);
 	    args = args->next;
 	}
+    Node* third = root->child->sibling->sibling;
+    //ID LP VarList RP
+    if(!strcmp(third->data, "VarList")){
+        irVarList(third);
+    }
+}
+
+void irVarList(Node* root){
+    if(!root || !root->child) return;
+    irParamDec(root->child);
+
+    //ParamDec COMMA VarList
+    if(root->child->sibling) {
+        irVarList(root->child->sibling->sibling);
+    }
+}
+
+void irParamDec(Node* root){
+    if(!root || !root->child || !root->child->sibling) return;
+    irVarDec(root->child->sibling, dummy);
 }
 
 void irCompSt(Node* root){
@@ -193,18 +216,18 @@ void irDec(Node* root){
 	FieldList* fieldList = irVarDec(root->child, NULL);
 	Type* retType = fieldList->type;
 	int size = 1;
-    while (retType){
+    while (retType && retType != dummy){
         if(retType->kind == ARRAY) size *= retType->u.array.size;
         retType = retType->u.array.elem;
     }
     if (size > 1){
-        Operand* var = newOp(OP_VALUE, fieldList->name);
+        Operand* var = newOp(OP_VAR, fieldList->name);
         Operand* num = newOp2(OP_NUM2, size*4);
         newIc2(I_DEC, var, num);
     }
 
 	if(root->child->sibling){
-        Operand* op = newOp(OP_VALUE, fieldList->name);
+        Operand* op = newOp(OP_VAR, fieldList->name);
         Operand* place = newOp2(OP_TEMPVAR, getVarNo());
         irExp(root->child->sibling->sibling, place);
         newIc2(I_ASSIGN, op, place);
@@ -342,8 +365,13 @@ void irStmt(Node* root){
 }
 
 void irCond(Node* root, Operand* labelTrue, Operand* labelFalse){
-	if(!strcmp(root->child->data, "Exp")){
-		char* keyword = root->child->sibling->data;
+    char* keyword = root->child->sibling->data;
+	if(!strcmp(root->child->data, "Exp") && (!strcmp(keyword, "AND") ||
+            !strcmp(keyword, "OR") || !strcmp(keyword, "<=") ||
+            !strcmp(keyword, ">=") || !strcmp(keyword, "==") ||
+            !strcmp(keyword, "!=") || !strcmp(keyword, "<") ||
+            !strcmp(keyword, ">"))){
+
 		if(!strcmp(keyword, "AND")){
 			Operand* label1 = newOp2(OP_LABEL, getLabelNo());
 			irCond(root->child, label1, labelFalse);
@@ -393,23 +421,36 @@ void irRealExp(Node* root, Operand* place, int depth){
 
         // Exp ASSIGNOP Exp
         if(!strcmp(keyword, "ASSIGNOP")){
-        	Operand* varName = (Operand*)malloc(sizeof(Operand));
-        	varName->kind = OP_VALUE;
-        	varName->u.value = root->child->child->data; //TODO: only ID here
+
+
         	Operand* t1 = (Operand*)malloc(sizeof(Operand));
         	t1->kind = OP_TEMPVAR;
         	t1->u.var_no = getVarNo();
         	irExp(root->child->sibling->sibling, t1);
+
+            Operand* varName = (Operand*)malloc(sizeof(Operand));
+            varName->kind = OP_VAR;
+            Node* hook = root->child;
+            while(!strcmp(hook->data, "Exp")) hook = hook->child;
+            varName->u.value = hook->data;
+            if(hook != root->child->child) irExp(root->child, NULL);
+            Operand* deref = newOp(OP_VALUE, "*tAddr");
+//        	Operand* varName = newOp2(OP_TEMPVAR, getVarNo());
+//        	irExp(root->child, varName);
         	InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
         	ic->kind = I_ASSIGN;
-        	ic->u.assign.left = varName;
+            if(hook == root->child->child) ic->u.assign.left = varName;
+            else{
+                ic->u.assign.left = deref;
+            }
         	ic->u.assign.right = t1;
         	irInsert(ic);
         	if(place){
         		InterCode* ic2 = (InterCode*)malloc(sizeof(InterCode));
         		ic2->kind = I_ASSIGN;
         		ic2->u.assign.left = place;
-        		ic2->u.assign.right = varName;
+                if(hook == root->child->child)ic2->u.assign.right = varName;
+                else ic2->u.assign.right = deref;
         		irInsert(ic2);
         	}
         }
@@ -466,7 +507,7 @@ void irRealExp(Node* root, Operand* place, int depth){
             Type* type = fieldList->type;
             int totDepth = 0;
             Type* temp = type;
-            while(temp){
+            while(temp && temp != dummy){
                 temp = temp->u.array.elem;
                 totDepth++;
             }
@@ -515,16 +556,26 @@ void irRealExp(Node* root, Operand* place, int depth){
     	
     	//ID
     	if(!root->child->sibling){
+    	    //assert(hashRead(root->child->data));
     	    if(depth == 0){
-                Operand* op = newOp(OP_VALUE, root->child->data);
-                InterCode* ic = newIc2(I_ASSIGN, place, op);
+                Operand* op = newOp(OP_VAR, root->child->data);
+                if(place) newIc2(I_ASSIGN, place, op);
     	    }
     		else{
     		    Operand* t1 = newOp(OP_VALUE, "tAddr");
-    		    Operand* addr = newOp(OP_ADDR, root->child->data);
+    		    Value* value = hashRead(root->child->data);
+    		    assert(value);
+    		    FieldList* fieldList = (FieldList*)value->val;
+    		    Operand* addr;
+    		    Type* type = fieldList->type;
+    		    while(type && type != dummy){
+    		        type = type->u.array.elem;
+    		    }
+    		    if(!type) addr = newOp(OP_ADDR, root->child->data);
+                else addr = newOp(OP_VAR, root->child->data);
     		    newIc3(I_ADD, t1, addr, sp);
-    		    Operand* t2 = newOp(OP_DEREF, "tAddr");
-    		    newIc2(I_ASSIGN, place, t2);
+                Operand* t2 = newOp(OP_DEREF, "tAddr");
+                if(place) newIc2(I_ASSIGN, place, t2);
     		}
 		    return;
     	}
@@ -568,34 +619,80 @@ void irRealExp(Node* root, Operand* place, int depth){
                     }
 		    		return;
                 }
-                
-                while(argList->val){
-                	Operand* op = (Operand*)malloc(sizeof(Operand));
-		    		op->kind = OP_VALUE;
-		    		op->u.value = argList->val;
-		    		InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
-		    		ic->kind = I_ARG;
-		    		ic->u.singleOp = op;
-		    		irInsert(ic);
-		    		argList = argList->next;
+
+                int depth = 0;
+                List* temp = argList;
+                while(temp){
+                    depth++;
+                    temp = temp->next;
+                }
+                for (int i = depth - 1; i >= 0; --i) {
+                    temp = argList;
+                    for (int j = 0; j < i; ++j) {
+                        temp = temp->next;
+                    }
+                    //BUG
+                    if(temp->val){
+                        Operand* op = newOp(OP_VALUE, temp->val);
+                        newIc1(I_ARG, op);
+                    }
+
                 }
             }
 
-            if(place){
-                Operand* op = (Operand*)malloc(sizeof(Operand));
-                op->kind = OP_VALUE;
-                op->u.value = name;
-                InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
-                ic->kind = I_CALL;
-                ic->u.assign.left = place;
-                ic->u.assign.right = op;
-                irInsert(ic);
+            Operand* op = newOp(OP_VALUE, name);
+            if(!place){
+                place = newOp2(OP_TEMPVAR, getVarNo());
             }
+            newIc2(I_CALL, place, op);
         }
     }
 }
 
 void irArgs(Node* root, List* argList){
+    Node* hook = root->child;
+    while(!strcmp(hook->child->data, "Exp")) hook = hook->child;
+    if(hook->child->type == ENUM_ID){
+        char* name = hook->child->data;
+        assert(hashRead(name));
+        Value* value = hashRead(hook->child->data);
+        FieldList* fieldList = (FieldList*)(value->val);
+        Type* type = fieldList->type;
+        if(fieldList && type && type->kind == ARRAY){
+            int depth = 0;
+            Type* temp = type;
+            while (temp && temp != dummy){
+                depth++;
+                temp = temp->u.array.elem;
+            }
+            int num = 0;
+            while(hook->sibling && !strcmp(hook->sibling->data, "LB")
+                  && hook->sibling->sibling && !strcmp(hook->sibling->sibling->data, "Exp")
+                  && hook->sibling->sibling->sibling && !strcmp(hook->sibling->sibling->sibling->data, "RB")){
+                hook = hook->sibling->sibling->sibling;
+                num++;
+            }
+            if(depth - num == 1){
+                char* s = (char*)malloc(70);
+                sprintf(s, "&v_%s", name);
+                argList->val = s;
+                if(root->child->sibling){
+                    List* nextArg = (List*)malloc(sizeof(List));
+                    nextArg->next = NULL;
+                    nextArg->val = NULL;
+                    argList->next = nextArg;
+                    irArgs(root->child->sibling->sibling, nextArg);
+                }
+                return;
+            }
+            else if(depth - num > 2){
+                printf("error: 2d or more dimension array cannot be used as argument.\n");
+                exit(1);
+            }
+        }
+
+    }
+
 	Operand* op = (Operand*)malloc(sizeof(Operand));
 	op->kind = OP_TEMPVAR;
 	op->u.var_no = getVarNo();
@@ -634,13 +731,16 @@ void irPrintOperand(Operand* op, FILE* fp){
 			fprintf(fp, "label%d ", op->u.var_no);
 			break;
         case OP_ADDR:
-            fprintf(fp, "&%s ", op->u.value);
+            fprintf(fp, "&v_%s ", op->u.value);
             break;
         case OP_DEREF:
             fprintf(fp, "*%s ", op->u.value);
             break;
         case OP_NUM2:
             fprintf(fp, "%d ", op->u.var_no);
+            break;
+        case OP_VAR:
+            fprintf(fp, "v_%s ", op->u.value);
             break;
 		default:
 			break;

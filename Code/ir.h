@@ -10,7 +10,7 @@ typedef struct InterCode_ InterCode;
 typedef struct List_ List; 
 
 struct Operand_{
-	enum {OP_VALUE, OP_TEMPVAR, OP_CONSTANT, OP_LABEL, OP_NUM, OP_ADDR, OP_DEREF, OP_NUM2} kind;
+	enum {OP_VALUE, OP_TEMPVAR, OP_CONSTANT, OP_LABEL, OP_NUM, OP_ADDR, OP_DEREF, OP_NUM2, OP_VAR} kind;
 	union{
 		int var_no;
 		char* value;
@@ -40,6 +40,8 @@ void irProgram(Node* root);
 void irExtDefList(Node* root);
 void irExtDef(Node* root);
 void irFunDec(Node* root);
+void irVarList(Node* root);
+void irParamDec(Node* root);
 void irDefList(Node* root);
 void irDef(Node* root);
 void irDecList(Node* root);
