@@ -10,6 +10,29 @@ Operand* sp;
 Operand* zero;
 Type* dummy;
 
+int sizeOf(Type* type){
+    if(!type || type == dummy) return 0;
+    if(type->kind == BASIC) return 4;
+    else if(type->kind == ARRAY){
+        int size = 1;
+        while (type && type != dummy){
+            if(type->kind == ARRAY) size *= type->u.array.size;
+            type = type->u.array.elem;
+        }
+        return size;
+    }
+    else if(type->kind == STRUCTURE){
+        FieldList* fieldList = type->u.structure;
+        int size = 0;
+        while (fieldList){
+            size += sizeOf(fieldList->type);
+            fieldList = fieldList->next;
+        }
+        return size;
+    }
+    return -1;
+}
+
 Operand* newOp(int kind, char* value){
 	Operand* op = (Operand*)malloc(sizeof(Operand));
 	op->kind = kind;
@@ -202,27 +225,28 @@ void irDefList(Node* root){
 
 void irDef(Node* root){
 	if(!root || !root->child || !root->child->sibling) return;
-    irDecList(root->child->sibling);
+    Type* type = Specifier(root->child);
+    irDecList(root->child->sibling, type);
 }
 
-void irDecList(Node* root){
+void irDecList(Node* root, Type* type){
 	if(!root || !root->child) return;
-    irDec(root->child);
-    if(root->child->sibling) irDecList(root->child->sibling->sibling);
+    irDec(root->child, type);
+    if(root->child->sibling) irDecList(root->child->sibling->sibling, type);
 }
 
-void irDec(Node* root){
+void irDec(Node* root, Type* type){
 	if(!root || !root->child) return;
 	FieldList* fieldList = irVarDec(root->child, NULL);
 	Type* retType = fieldList->type;
-	int size = 1;
-    while (retType && retType != dummy){
-        if(retType->kind == ARRAY) size *= retType->u.array.size;
-        retType = retType->u.array.elem;
-    }
+	int size = sizeOf(retType);
+//    while (retType && retType != dummy){
+//        if(retType->kind == ARRAY) size *= retType->u.array.size;
+//        retType = retType->u.array.elem;
+//    }
     if (size > 1){
         Operand* var = newOp(OP_VAR, fieldList->name);
-        Operand* num = newOp2(OP_NUM2, size*4);
+        Operand* num = newOp2(OP_NUM2, size * sizeOf(type));
         newIc2(I_DEC, var, num);
     }
 
