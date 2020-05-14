@@ -674,7 +674,8 @@ void irArgs(Node* root, List* argList){
             }
             if(depth - num == 1){
                 char* s = (char*)malloc(70);
-                sprintf(s, "&v_%s", name);
+                if(!temp) sprintf(s, "&v_%s", name);
+                else sprintf(s, "v_%s", name);
                 argList->val = s;
                 if(root->child->sibling){
                     List* nextArg = (List*)malloc(sizeof(List));
