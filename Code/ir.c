@@ -8,7 +8,9 @@ int curVarNo = 0;
 int curLabelNo = 0;
 Operand* sp;
 Operand* zero;
-Type* dummy;
+
+char* paramArray[10000];
+int paramArrayIndex = 0;
 char* paramStructure[10000];
 int paramStructureIndex = 0;
 
@@ -19,6 +21,13 @@ int checkParamStructure(char* name){
     return 0;
 };
 
+int checkParamArray(char* name){
+    for(int i = 0;i < paramArrayIndex;i++){
+        if(!strcmp(paramArray[i], name)) return 1;
+    }
+    return 0;
+}
+
 Type* readType(char* name){
     Value* value = hashRead(name);
     if(!value) return NULL;
@@ -28,11 +37,11 @@ Type* readType(char* name){
 }
 
 int sizeOf(Type* type){
-    if(!type || type == dummy) return 0;
+    if(!type) return 0;
     if(type->kind == BASIC) return 4;
     else if(type->kind == ARRAY){
         int size = 1;
-        while (type && type != dummy){
+        while (type){
             if(type->kind == ARRAY) size *= type->u.array.size;
             type = type->u.array.elem;
         }
@@ -137,8 +146,6 @@ void irDelete(InterCode* intercode){
 void initOp(){
     sp = newOp(OP_VALUE, "sp");
     zero = newOp(OP_NUM, 0);
-    dummy = (Type*)malloc(sizeof(Type));
-    dummy->u.basic = -1;
 }
 
 void irProgram(Node* root){
@@ -220,7 +227,10 @@ void irParamDec(Node* root){
     if(type->kind == STRUCTURE){
         irVarDec(root->child->sibling, type, 1);
     }
-    else irVarDec(root->child->sibling, dummy, 0);
+    else if(root->child->sibling->child->type != ENUM_ID) {
+        irVarDec(root->child->sibling, type, 2);
+    }
+    else irVarDec(root->child->sibling, type, 0);
 }
 
 void irCompSt(Node* root){
@@ -295,8 +305,11 @@ FieldList* irVarDec(Node* root, Type* type, int isParamStructure){
         value->kind = type;
         value->val = ret;
         hashInsert(ret->name, value);
-        if(isParamStructure){
+        if(isParamStructure == 1){
             paramStructure[paramStructureIndex++] = ret->name;
+        }
+        else if(isParamStructure == 2){
+            paramArray[paramArrayIndex++] = ret->name;
         }
         return ret;
     }
@@ -308,7 +321,7 @@ FieldList* irVarDec(Node* root, Type* type, int isParamStructure){
         childType->kind = ARRAY;
         childType->u.array.elem = type;
         childType->u.array.size = num;
-        return irVarDec(root->child, childType, 0);
+        return irVarDec(root->child, childType, isParamStructure);
     }
 
     assert(0);
@@ -581,7 +594,7 @@ void irRealExp(Node* root, Operand* place, int depth){
             Type* type = fieldList->type;
             int totDepth = 0;
             Type* temp = type;
-            while(temp && temp != dummy){
+            while(temp){
                 temp = temp->u.array.elem;
                 totDepth++;
             }
@@ -648,15 +661,15 @@ void irRealExp(Node* root, Operand* place, int depth){
     	    }
     		else{
     		    Operand* t1 = newOp(OP_VALUE, "tAddr");
-    		    Value* value = hashRead(root->child->data);
-    		    assert(value);
-    		    FieldList* fieldList = (FieldList*)value->val;
+    		    //Value* value = hashRead(root->child->data);
+    		    //assert(value);
+    		    //FieldList* fieldList = (FieldList*)value->val;
     		    Operand* addr;
-    		    Type* type = fieldList->type;
-    		    while(type && type != dummy){
-    		        type = type->u.array.elem;
-    		    }
-    		    if(!type) addr = newOp(OP_ADDR, root->child->data);
+    		    //Type* type = fieldList->type;
+    		    //while(type && type != dummy){
+    		     //   type = type->u.array.elem;
+    		    //}
+    		    if(checkParamArray(root->child->data) == 0) addr = newOp(OP_ADDR, root->child->data);
                 else addr = newOp(OP_VAR, root->child->data);
     		    newIc3(I_ADD, t1, addr, sp);
                 Operand* t2 = newOp(OP_DEREF, "tAddr");
@@ -746,7 +759,7 @@ void irArgs(Node* root, List* argList){
         if(fieldList && type && type->kind == ARRAY){
             int depth = 0;
             Type* temp = type;
-            while (temp && temp != dummy){
+            while (temp && temp->kind == ARRAY){
                 depth++;
                 temp = temp->u.array.elem;
             }
@@ -759,7 +772,7 @@ void irArgs(Node* root, List* argList){
             }
             if(depth - num == 1){
                 char* s = (char*)malloc(70);
-                if(!temp) sprintf(s, "&v_%s", name);
+                if(checkParamArray(name) == 0) sprintf(s, "&v_%s", name);
                 else sprintf(s, "v_%s", name);
                 argList->val = s;
                 if(root->child->sibling){
