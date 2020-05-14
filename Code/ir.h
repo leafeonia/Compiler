@@ -46,7 +46,7 @@ void irDefList(Node* root);
 void irDef(Node* root);
 void irDecList(Node* root, Type* type);
 void irDec(Node* root, Type* type);
-FieldList* irVarDec(Node* root, Type* type);
+FieldList* irVarDec(Node* root, Type* type, int flag);
 void irCompSt(Node* root);
 void irInsert(InterCode* intercode);
 void irDelete(InterCode* intercode);

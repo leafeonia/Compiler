@@ -9,6 +9,23 @@ int curLabelNo = 0;
 Operand* sp;
 Operand* zero;
 Type* dummy;
+char* paramStructure[10000];
+int paramStructureIndex = 0;
+
+int checkParamStructure(char* name){
+    for(int i = 0;i < paramStructureIndex;i++){
+        if(!strcmp(paramStructure[i], name)) return 1;
+    }
+    return 0;
+};
+
+Type* readType(char* name){
+    Value* value = hashRead(name);
+    if(!value) return NULL;
+    FieldList* fieldList = (FieldList*)value->val;
+    if(!fieldList) return NULL;
+    return fieldList->type;
+}
 
 int sizeOf(Type* type){
     if(!type || type == dummy) return 0;
@@ -199,7 +216,11 @@ void irVarList(Node* root){
 
 void irParamDec(Node* root){
     if(!root || !root->child || !root->child->sibling) return;
-    irVarDec(root->child->sibling, dummy);
+    Type* type = Specifier(root->child);
+    if(type->kind == STRUCTURE){
+        irVarDec(root->child->sibling, type, 1);
+    }
+    else irVarDec(root->child->sibling, dummy, 0);
 }
 
 void irCompSt(Node* root){
@@ -237,16 +258,19 @@ void irDecList(Node* root, Type* type){
 
 void irDec(Node* root, Type* type){
 	if(!root || !root->child) return;
-	FieldList* fieldList = irVarDec(root->child, NULL);
+    FieldList* fieldList;
+	if(root->child->child->type == ENUM_ID) fieldList = irVarDec(root->child, type, 0); //!!
+	else fieldList = irVarDec(root->child, NULL, 0);
 	Type* retType = fieldList->type;
-	int size = sizeOf(retType);
+	int arraySize = 1;
+	if(retType->kind == ARRAY) arraySize = sizeOf(retType);
 //    while (retType && retType != dummy){
 //        if(retType->kind == ARRAY) size *= retType->u.array.size;
 //        retType = retType->u.array.elem;
 //    }
-    if (size > 1){
+    if (!(retType->kind == BASIC && type->kind == BASIC) ){
         Operand* var = newOp(OP_VAR, fieldList->name);
-        Operand* num = newOp2(OP_NUM2, size * sizeOf(type));
+        Operand* num = newOp2(OP_NUM2, arraySize * sizeOf(type));
         newIc2(I_DEC, var, num);
     }
 
@@ -258,7 +282,7 @@ void irDec(Node* root, Type* type){
 	}
 }
 
-FieldList* irVarDec(Node* root, Type* type){
+FieldList* irVarDec(Node* root, Type* type, int isParamStructure){
     if(!root || !root->child) return NULL;
 
     //ID
@@ -271,6 +295,9 @@ FieldList* irVarDec(Node* root, Type* type){
         value->kind = type;
         value->val = ret;
         hashInsert(ret->name, value);
+        if(isParamStructure){
+            paramStructure[paramStructureIndex++] = ret->name;
+        }
         return ret;
     }
 
@@ -281,7 +308,7 @@ FieldList* irVarDec(Node* root, Type* type){
         childType->kind = ARRAY;
         childType->u.array.elem = type;
         childType->u.array.size = num;
-        return irVarDec(root->child, childType);
+        return irVarDec(root->child, childType, 0);
     }
 
     assert(0);
@@ -514,6 +541,29 @@ void irRealExp(Node* root, Operand* place, int depth){
             newIc1(I_LABEL, label2);
         }
 
+        //Exp DOT ID
+        if(!strcmp(keyword, "DOT")){
+            irExp(root->child, NULL);
+            Node* hook = root->child;
+            while(!(strcmp(hook->data, "Exp")))
+                hook = hook->child;
+            Type* type = readType(hook->data);
+            int size = 0;
+            FieldList* fieldList = type->u.structure;
+            while(fieldList){
+                if (!strcmp(fieldList->name, root->child->sibling->sibling->data)){
+                    break;
+                }
+                size += sizeOf(fieldList->type);
+                fieldList = fieldList->next;
+            }
+            Operand* taddr = newOp(OP_VALUE, "tAddr");
+            Operand* adder = newOp2(OP_NUM, size);
+            newIc3(I_ADD, taddr, taddr, adder);
+            Operand* deref = newOp(OP_DEREF, "tAddr");
+            if(place) newIc2(I_ASSIGN, place, deref);
+        }
+
         //Exp LB Exp RB
         if(!strcmp(keyword, "LB")){
             if(depth == 0){
@@ -582,8 +632,19 @@ void irRealExp(Node* root, Operand* place, int depth){
     	if(!root->child->sibling){
     	    //assert(hashRead(root->child->data));
     	    if(depth == 0){
-                Operand* op = newOp(OP_VAR, root->child->data);
-                if(place) newIc2(I_ASSIGN, place, op);
+
+                Type* type = readType(root->child->data);
+                if(type && type->kind == STRUCTURE){
+                    Operand* taddr = newOp(OP_VALUE, "tAddr");
+                    Operand* op;
+                    if(checkParamStructure(root->child->data) == 1) op = newOp(OP_VAR, root->child->data);
+                    else op = newOp(OP_ADDR, root->child->data);
+                    newIc2(I_ASSIGN, taddr, op);
+                }
+                if(place) {
+                    Operand* op = newOp(OP_VAR, root->child->data);
+                    newIc2(I_ASSIGN, place, op);
+                }
     	    }
     		else{
     		    Operand* t1 = newOp(OP_VALUE, "tAddr");
@@ -715,8 +776,23 @@ void irArgs(Node* root, List* argList){
                 exit(1);
             }
         }
+        else if(type && type->kind == STRUCTURE && (!root->child->child->sibling)){
+            char* s = (char*)malloc(70);
+            if(checkParamStructure(name) == 0) sprintf(s, "&v_%s", name);
+            else sprintf(s, "v_%s", name);
+            argList->val = s;
+            if(root->child->sibling){
+                List* nextArg = (List*)malloc(sizeof(List));
+                nextArg->next = NULL;
+                nextArg->val = NULL;
+                argList->next = nextArg;
+                irArgs(root->child->sibling->sibling, nextArg);
+            }
+            return;
+        }
 
     }
+
 
 	Operand* op = (Operand*)malloc(sizeof(Operand));
 	op->kind = OP_TEMPVAR;
