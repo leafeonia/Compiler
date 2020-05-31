@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "tree.h"
 #include "semantic.h"
+#include "assemble.h"
 
 int main(int argc, char** argv){
 	if(argc <= 1) return 1;
@@ -9,8 +10,8 @@ int main(int argc, char** argv){
 		perror(argv[1]);
 		return 1;
 	}
-	FILE* irFile = fopen(argv[2], "w");
-	if(!irFile){
+	FILE* assembleFile = fopen(argv[2], "w");
+	if(!assembleFile){
 		perror(argv[2]);
 		return 1;
 	}
@@ -18,7 +19,8 @@ int main(int argc, char** argv){
 	yyparse();
 	//printTree();
 	semanticAnalysis();
-	irGenerate(irFile);
+	irGenerate(NULL);
+	printAssemble(assembleFile);
 	clear();
 	return 0;
 }

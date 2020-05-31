@@ -108,6 +108,6 @@ void semanticAnalysis(){
 
 void irGenerate(FILE* fp){
 	irProgram(root);
-	irPrintCode(fp);
+	if(fp) irPrintCode(fp);
 }
 

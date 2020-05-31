@@ -10,7 +10,7 @@ typedef struct InterCode_ InterCode;
 typedef struct List_ List; 
 
 struct Operand_{
-	enum {OP_VALUE, OP_TEMPVAR, OP_CONSTANT, OP_LABEL, OP_NUM, OP_ADDR, OP_DEREF, OP_NUM2, OP_VAR} kind;
+	enum {OP_VALUE, OP_TEMPVAR, OP_LABEL, OP_NUM, OP_ADDR, OP_DEREF, OP_NUM2, OP_VAR} kind;
 	union{
 		int var_no;
 		char* value;

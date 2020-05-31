@@ -41,10 +41,11 @@ int sizeOf(Type* type){
     if(type->kind == BASIC) return 4;
     else if(type->kind == ARRAY){
         int size = 1;
-        while (type){
-            if(type->kind == ARRAY) size *= type->u.array.size;
+        while (type->kind == ARRAY){
+            size *= type->u.array.size;
             type = type->u.array.elem;
         }
+        size *= sizeOf(type);
         return size;
     }
     else if(type->kind == STRUCTURE){
@@ -270,17 +271,15 @@ void irDec(Node* root, Type* type){
 	if(!root || !root->child) return;
     FieldList* fieldList;
 	if(root->child->child->type == ENUM_ID) fieldList = irVarDec(root->child, type, 0); //!!
-	else fieldList = irVarDec(root->child, NULL, 0);
+	else fieldList = irVarDec(root->child, type, 0);
 	Type* retType = fieldList->type;
-	int arraySize = 1;
-	if(retType->kind == ARRAY) arraySize = sizeOf(retType);
 //    while (retType && retType != dummy){
 //        if(retType->kind == ARRAY) size *= retType->u.array.size;
 //        retType = retType->u.array.elem;
 //    }
     if (!(retType->kind == BASIC && type->kind == BASIC) ){
         Operand* var = newOp(OP_VAR, fieldList->name);
-        Operand* num = newOp2(OP_NUM2, arraySize * sizeOf(type));
+        Operand* num = newOp2(OP_NUM2, sizeOf(retType));
         newIc2(I_DEC, var, num);
     }
 
@@ -549,7 +548,7 @@ void irRealExp(Node* root, Operand* place, int depth){
             InterCode* ic = newIc2(I_ASSIGN, place, zero);
             irCond(root, label1, label2);
             InterCode* ic2 = newIc1(I_LABEL, label1);
-            Operand* one = newOp(OP_CONSTANT, "1");
+            Operand* one = newOp2(OP_NUM, 1);
             newIc2(I_ASSIGN, place, one);
             newIc1(I_LABEL, label2);
         }
@@ -562,13 +561,20 @@ void irRealExp(Node* root, Operand* place, int depth){
                 hook = hook->child;
             Type* type = readType(hook->data);
             int size = 0;
-            FieldList* fieldList = type->u.structure;
-            while(fieldList){
-                if (!strcmp(fieldList->name, root->child->sibling->sibling->data)){
-                    break;
+            if(type->kind == ARRAY){
+                while (type && type->kind != STRUCTURE){
+                    type = type->u.array.elem;
                 }
-                size += sizeOf(fieldList->type);
-                fieldList = fieldList->next;
+            }
+            if(type && type->kind == STRUCTURE){
+                FieldList* fieldList = type->u.structure;
+                while(fieldList){
+                    if (!strcmp(fieldList->name, root->child->sibling->sibling->data)){
+                        break;
+                    }
+                    size += sizeOf(fieldList->type);
+                    fieldList = fieldList->next;
+                }
             }
             Operand* taddr = newOp(OP_VALUE, "tAddr");
             Operand* adder = newOp2(OP_NUM, size);
@@ -584,7 +590,7 @@ void irRealExp(Node* root, Operand* place, int depth){
             }
             Operand* t1 = newOp2(OP_TEMPVAR, getVarNo());
             irExp(root->child->sibling->sibling, t1);
-            int size = 1;
+
             Node* hook = root->child;
             while(!(strcmp(hook->data, "Exp")))
                 hook = hook->child;
@@ -592,17 +598,24 @@ void irRealExp(Node* root, Operand* place, int depth){
             assert(value);
             FieldList* fieldList = (FieldList*)(value->val);
             Type* type = fieldList->type;
-            int totDepth = 0;
-            Type* temp = type;
-            while(temp){
-                temp = temp->u.array.elem;
-                totDepth++;
+            int size = 1;
+            if(type->kind == ARRAY){
+                int totDepth = 0;
+                Type* temp = type;
+                while(temp && temp->kind == ARRAY){
+                    temp = temp->u.array.elem;
+                    totDepth++;
+                }
+                size = sizeOf(temp);
+                for(int i = 0;i < totDepth;i++){
+                    if(i >= totDepth - depth) size *= type->u.array.size;
+                    type = type->u.array.elem;
+                }
             }
-            for(int i = 0;i < totDepth;i++){
-                if(i >= totDepth - depth) size *= type->u.array.size;
-                type = type->u.array.elem;
+            else if(type->kind == STRUCTURE){
+                size = sizeOf(type);
             }
-            Operand* num = newOp2(OP_NUM, 4 * size);
+            Operand* num = newOp2(OP_NUM, size);
             Operand* t2 = newOp2(OP_TEMPVAR, getVarNo());
             newIc3(I_STAR, t2, t1, num);
             newIc3(I_ADD, sp, sp, t2);
@@ -629,8 +642,8 @@ void irRealExp(Node* root, Operand* place, int depth){
 	//INT FLOAT
     else if(root->child->type == ENUM_INT || root->child->type == ENUM_FLOAT){
         Operand* op = (Operand*)malloc(sizeof(Operand));
-        op->kind = OP_CONSTANT;
-        op->u.value = root->child->data;
+        op->kind = OP_NUM;
+        op->u.var_no = atoi(root->child->data);
         InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
         ic->kind = I_ASSIGN;
         ic->u.assign.left = place;
@@ -707,8 +720,8 @@ void irRealExp(Node* root, Operand* place, int depth){
 		    		irInsert(ic);
 		    		if(place) {
                         Operand *op2 = (Operand *) malloc(sizeof(Operand));
-                        op2->kind = OP_CONSTANT;
-                        op2->u.value = "0";
+                        op2->kind = OP_NUM;
+                        op2->u.value = 0;
                         InterCode *ic2 = (InterCode *) malloc(sizeof(InterCode));
                         ic2->kind = I_ASSIGN;
                         ic2->u.assign.left = place;
@@ -834,9 +847,6 @@ void irPrintOperand(Operand* op, FILE* fp){
 			break;
 		case OP_TEMPVAR:
 			fprintf(fp, "t%d ", op->u.var_no);
-			break;
-		case OP_CONSTANT:
-			fprintf(fp, "#%s ", op->u.value);
 			break;
         case OP_NUM:
             fprintf(fp, "#%d ", op->u.var_no);
