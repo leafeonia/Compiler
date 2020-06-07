@@ -61,7 +61,10 @@ void irToAssemble(InterCode* ir){
             PUSH_SP;
             fprintf(fp, "sw $fp, 0($sp)\n");
             PUSH_SP;
-            fprintf(fp, "move $fp, $sp\nsw $ra, 0($sp)\n");
+//            fprintf(fp, "move $fp, $sp\nsw $ra, 0($sp)\n");
+            fprintf(fp, "sw $ra, 0($sp)\n");
+            PUSH_SP
+            fprintf(fp, "addi $fp, $sp, 12\n");
             break;
         }
 		case I_PARAM:
@@ -78,9 +81,10 @@ void irToAssemble(InterCode* ir){
 		            fprintf(fp, "sw $t0, %d($fp)\n", getValOffset(left));
 		        }
 		        else{
-		            fprintf(fp, "sw $t0, %d($fp)\n", offset);
-		            hashInsert(getOpName(left), setValOffset(offset));
-		            PUSH_SP
+                    hashInsert(getOpName(left), setValOffset(offset));
+                    PUSH_SP
+		            fprintf(fp, "sw $t0, %d($fp)\n", offset + 4);
+
 		        }
 		    }
 		    else{
@@ -90,9 +94,10 @@ void irToAssemble(InterCode* ir){
 		            fprintf(fp, "sw $t0, %d($fp)\n", getValOffset(left));
 		        }
 		        else{
-                    fprintf(fp, "sw $t0, %d($fp)\n", offset);
                     hashInsert(getOpName(left), setValOffset(offset));
                     PUSH_SP
+                    fprintf(fp, "sw $t0, %d($fp)\n", offset + 4);
+
 		        }
 		    }
             break;
@@ -110,7 +115,7 @@ void irToAssemble(InterCode* ir){
             fprintf(fp, "addi $sp, $sp, -4\nsw $ra, 0($sp)\njal write\nlw $ra, 0($sp)\naddi $sp, $sp, 4\n");
             break;
 		case I_CALL: {
-		    PUSH_SP
+//		    PUSH_SP
             char *funcName = ir->u.assign.right->u.value;
             if (!strcmp(funcName, "main")) fprintf(fp, "jal main\n");
             else fprintf(fp, "jal f_%s\n", ir->u.assign.right->u.value);
@@ -130,9 +135,9 @@ void irToAssemble(InterCode* ir){
 		    fprintf(fp, "lw $v0, %d($fp)\n", getValOffset(ir->u.singleOp));
 
 		    //restore $sp and $fp
-		    fprintf(fp, "lw $sp, 8($fp)\n");
-            fprintf(fp, "lw $ra, 0($fp)\n");
-		    fprintf(fp, "lw $fp, 4($fp)\n");
+		    fprintf(fp, "lw $sp, 0($fp)\n");
+            fprintf(fp, "lw $ra, -8($fp)\n");
+		    fprintf(fp, "lw $fp, -4($fp)\n");
 
 		    fprintf(fp, "jr $ra\n");
 			break;
@@ -208,19 +213,34 @@ void irToAssemble(InterCode* ir){
                 fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
             }
             fprintf(fp, "lw $t1, %d($fp)\n", getValOffset(op1));
+            fprintf(fp, "mul $t2, $t1, $t0\n");
             if (!hashRead(getOpName(result))){
                 hashInsert(getOpName(result), setValOffset(offset));
                 PUSH_SP
             }
-            fprintf(fp, "mul $t2, $t1, $t0\n");
             fprintf(fp, "sw $t2, %d($fp)\n", getValOffset(result));
             break;
         }
-	    case I_DIV:
-//            fprintf(fp, "div %s, %s\n", getReg(ir->u.binop.op1), getReg(ir->u.binop.op2));
-//            fprintf(fp, "mflo, %s\n", getReg(ir->u.binop.result));
-            fprintf(fp, "TODO DIV\n");
-	    	break;
+	    case I_DIV: {
+            Operand *result = ir->u.binop.result;
+            Operand *op1 = ir->u.binop.op1;
+            Operand *op2 = ir->u.binop.op2;
+            if (op2->kind == OP_NUM){
+                fprintf(fp, "li $t0, #%d\n", op2->u.var_no);
+            }
+            else {
+                fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
+            }
+            fprintf(fp, "lw $t1, %d($fp)\n", getValOffset(op1));
+            fprintf(fp, "div $t1, $t0\n");
+            fprintf(fp, "mflo, $t0\n");
+            if (!hashRead(getOpName(result))){
+                hashInsert(getOpName(result), setValOffset(offset));
+                PUSH_SP
+            }
+            fprintf(fp, "sw $t0, %d($fp)\n", getValOffset(result));
+            break;
+        }
 	    case I_DEC:
 	        fprintf(fp, "TODO DEC\n");
 	    	break;
