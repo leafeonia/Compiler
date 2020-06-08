@@ -7,7 +7,7 @@ extern InterCode* irHead;
 FILE* fp;
 int offset = -4;
 int paramCount = 0;
-#define PUSH_SP {fprintf(fp, "addi $sp, $sp, -4\n");offset -= 4;}
+#define PUSH_SP {fprintf(fp, "addi $sp, $fp, %d\n", offset); offset -= 4; }
 
 Value* setValOffset(int off){
     Value* value = (Value*)malloc(sizeof(Value));
@@ -58,18 +58,18 @@ void irToAssemble(InterCode* ir){
 
             //save $sp and $fp
             fprintf(fp, "sw $sp, 0($sp)\n");
-            PUSH_SP;
+            fprintf(fp, "addi $sp, $sp, -4\n");
             fprintf(fp, "sw $fp, 0($sp)\n");
-            PUSH_SP;
-//            fprintf(fp, "move $fp, $sp\nsw $ra, 0($sp)\n");
+            fprintf(fp, "addi $sp, $sp, -4\n");
             fprintf(fp, "sw $ra, 0($sp)\n");
-            PUSH_SP
+            fprintf(fp, "addi $sp, $sp, -4\n");
             fprintf(fp, "addi $fp, $sp, 12\n");
+            offset = -16;
             break;
         }
 		case I_PARAM:
 		    paramCount++;
-		    hashInsert(getOpName(ir->u.singleOp), setValOffset(4 * paramCount + 12));
+		    hashInsert(getOpName(ir->u.singleOp), setValOffset(4 * paramCount));
 			break;
 		case I_ASSIGN: {
 		    Operand* left = ir->u.assign.left;
