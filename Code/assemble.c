@@ -64,7 +64,7 @@ void irToAssemble(InterCode* ir){
             fprintf(fp, "sw $ra, 0($sp)\n");
             fprintf(fp, "addi $sp, $sp, -4\n");
             fprintf(fp, "addi $fp, $sp, 12\n");
-            offset = -16;
+            offset = -12;
             break;
         }
 		case I_PARAM:
@@ -75,6 +75,11 @@ void irToAssemble(InterCode* ir){
 		    Operand* left = ir->u.assign.left;
 		    Operand* right = ir->u.assign.right;
 		    if (right->kind == OP_NUM){
+		        //sp := #0
+		        if (left->kind == OP_VALUE && !strcmp(left->u.value, "sp")){
+		            fprintf(fp, "li $t8, 0\n");
+                    break;
+		        }
 		        fprintf(fp, "li $t0, %d\n", right->u.var_no);
 		        Value* val = hashRead(getOpName(left));
 		        if (val){
@@ -88,6 +93,27 @@ void irToAssemble(InterCode* ir){
 		        }
 		    }
 		    else{
+		        // *tAddr := t0
+                if (left->kind == OP_DEREF){
+                    fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(right));
+                    fprintf(fp, "sub $t7, $fp, $t9\n");
+                    fprintf(fp, "sw $t0, 0($t7)\n");
+                    break;
+                }
+                // t3 := *tAddr
+                if (right->kind == OP_DEREF){
+                    hashInsert(getOpName(left), setValOffset(offset));
+                    PUSH_SP
+                    fprintf(fp, "sub $t7, $fp, $t9\n");
+                    fprintf(fp, "lw $t0, 0($t7)\n");
+                    fprintf(fp, "sw $t0, %d($fp)\n", getValOffset(left));
+                    break;
+                }
+                Value* value = hashRead(getOpName(right));
+                if (!value){
+                    hashInsert(getOpName(right), setValOffset(offset));
+                    PUSH_SP
+                }
 		        fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(right));
 		        Value* val = hashRead(getOpName(left));
 		        if (val){
@@ -149,7 +175,12 @@ void irToAssemble(InterCode* ir){
 	    	break;
 	    case I_IFGOTO: {
             fprintf(fp, "lw $t1, %d($fp)\n", getValOffset(ir->u.triop.op1));
-            fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(ir->u.triop.op2));
+            if (ir->u.triop.op2->kind == OP_NUM){
+                fprintf(fp, "li $t0, %d\n", ir->u.triop.op2->u.var_no);
+            }
+            else {
+                fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(ir->u.triop.op2));
+            }
             char* val = ir->u.triop.relop->u.value;
             if (!strcmp(val, "<")) fprintf(fp, "blt");
             else if (!strcmp(val, ">")) fprintf(fp, "bgt");
@@ -164,6 +195,21 @@ void irToAssemble(InterCode* ir){
 	    	Operand* result = ir->u.binop.result;
 	    	Operand* op1 = ir->u.binop.op1;
 	    	Operand* op2 = ir->u.binop.op2;
+	    	// sp := sp + t2
+	    	if (result->kind == OP_VALUE && !strcmp(result->u.value, "sp")){
+	    	    fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
+	    	    fprintf(fp, "add $t8, $t8, $t0\n");
+	    	    break;
+	    	}
+            // tAddr := &v_a + sp
+            // use positive number to represent negative one
+            // tAddr := -440($fp) + 8
+            // $t9 = 440 - 8
+            if (op2->kind == OP_VALUE && !strcmp(op2->u.value, "sp")){
+                fprintf(fp, "li $t0, %d\n", -getValOffset(op1));
+	    	    fprintf(fp, "sub $t9, $t0, $t8\n");
+                break;
+	    	}
 	    	if(op2->kind == OP_NUM){
 	    	    fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op1));
 	    		fprintf(fp, "addi $t2, $t0, %d\n", op2->u.var_no);
@@ -190,7 +236,12 @@ void irToAssemble(InterCode* ir){
                 fprintf(fp, "addi $t2, $t0, %d\n", -op2->u.var_no);
             }
             else{
-                fprintf(fp, "lw $t1, %d($fp)\n", getValOffset(op1));
+                if (op1->kind == OP_NUM){
+                    fprintf(fp, "li $t1, 0\n");
+                }
+                else{
+                    fprintf(fp, "lw $t1, %d($fp)\n", getValOffset(op1));
+                }
                 fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
                 fprintf(fp, "sub $t2, $t1, $t0\n");
             }
@@ -207,7 +258,7 @@ void irToAssemble(InterCode* ir){
             Operand *op1 = ir->u.binop.op1;
             Operand *op2 = ir->u.binop.op2;
             if (op2->kind == OP_NUM){
-                fprintf(fp, "li $t0, #%d\n", op2->u.var_no);
+                fprintf(fp, "li $t0, %d\n", op2->u.var_no);
             }
             else {
                 fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
@@ -226,7 +277,7 @@ void irToAssemble(InterCode* ir){
             Operand *op1 = ir->u.binop.op1;
             Operand *op2 = ir->u.binop.op2;
             if (op2->kind == OP_NUM){
-                fprintf(fp, "li $t0, #%d\n", op2->u.var_no);
+                fprintf(fp, "li $t0, %d\n", op2->u.var_no);
             }
             else {
                 fprintf(fp, "lw $t0, %d($fp)\n", getValOffset(op2));
@@ -242,7 +293,10 @@ void irToAssemble(InterCode* ir){
             break;
         }
 	    case I_DEC:
-	        fprintf(fp, "TODO DEC\n");
+	        offset -= ir->u.assign.right->u.var_no;
+	        fprintf(fp, "addi $sp, $fp, %d\n", offset);
+	        hashInsert(getOpName(ir->u.assign.left), setValOffset(offset));
+	        offset -= 4;
 	    	break;
 	    default:
 	    	break;

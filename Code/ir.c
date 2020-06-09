@@ -461,7 +461,7 @@ void irCond(Node* root, Operand* labelTrue, Operand* labelFalse){
 	}
 	
 	else if(!strcmp(root->child->data, "NOT")){
-		irCond(root, labelFalse, labelTrue);
+		irCond(root->child->sibling, labelFalse, labelTrue);
 	}
 	else{
 		Operand* temp = newOp2(OP_TEMPVAR, getVarNo());
@@ -497,7 +497,7 @@ void irRealExp(Node* root, Operand* place, int depth){
             while(!strcmp(hook->data, "Exp")) hook = hook->child;
             varName->u.value = hook->data;
             if(hook != root->child->child) irExp(root->child, NULL);
-            Operand* deref = newOp(OP_VALUE, "*tAddr");
+            Operand* deref = newOp(OP_DEREF, "tAddr");
 //        	Operand* varName = newOp2(OP_TEMPVAR, getVarNo());
 //        	irExp(root->child, varName);
         	InterCode* ic = (InterCode*)malloc(sizeof(InterCode));
@@ -541,8 +541,9 @@ void irRealExp(Node* root, Operand* place, int depth){
         	}
         }
 
-        if(!strcmp(keyword, "AND") || !strcmp(keyword, "OR") || !strcmp(keyword, "RELOP") ||
-        !strcmp(keyword, "Exp")){
+        if(!strcmp(keyword, "AND") || !strcmp(keyword, "OR") || !strcmp(keyword, "==") ||
+                !strcmp(keyword, ">=") || !strcmp(keyword, "<=") || !strcmp(keyword, ">") ||
+                !strcmp(keyword, "<") || !strcmp(keyword, "!=") || !strcmp(keyword, "Exp")){
             Operand* label1 = newOp2(OP_LABEL, getLabelNo());
             Operand* label2 = newOp2(OP_LABEL, getLabelNo());
             InterCode* ic = newIc2(I_ASSIGN, place, zero);
@@ -633,10 +634,10 @@ void irRealExp(Node* root, Operand* place, int depth){
 	    int no = getVarNo();
 	    Operand* t1 = newOp2(OP_TEMPVAR, no);
 	    irExp(root->child->sibling, t1);
-	    char* s = (char*)malloc(10 * sizeof(char));
-	    sprintf(s, "#0 - t%d", no);
-	    Operand* op = newOp(OP_VALUE, s);
-	    newIc2(I_ASSIGN, place, op);
+//	    char* s = (char*)malloc(10 * sizeof(char));
+//	    sprintf(s, "#0 - t%d", no);
+//	    Operand* op = newOp(OP_VALUE, s);
+	    newIc3(I_MINUS, place, zero, t1);
 	}
 	
 	//INT FLOAT
