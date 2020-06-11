@@ -287,7 +287,11 @@ void irDec(Node* root, Type* type){
         Operand* op = newOp(OP_VAR, fieldList->name);
         Operand* place = newOp2(OP_TEMPVAR, getVarNo());
         irExp(root->child->sibling->sibling, place);
-        newIc2(I_ASSIGN, op, place);
+        if(place) newIc2(I_ASSIGN, op, place);
+	}
+	else{
+	    Operand* op = newOp(OP_VAR, fieldList->name);
+	    newIc2(I_ASSIGN, op, zero);
 	}
 }
 
@@ -546,11 +550,11 @@ void irRealExp(Node* root, Operand* place, int depth){
                 !strcmp(keyword, "<") || !strcmp(keyword, "!=") || !strcmp(keyword, "Exp")){
             Operand* label1 = newOp2(OP_LABEL, getLabelNo());
             Operand* label2 = newOp2(OP_LABEL, getLabelNo());
-            InterCode* ic = newIc2(I_ASSIGN, place, zero);
+            if(place) newIc2(I_ASSIGN, place, zero);
             irCond(root, label1, label2);
             InterCode* ic2 = newIc1(I_LABEL, label1);
             Operand* one = newOp2(OP_NUM, 1);
-            newIc2(I_ASSIGN, place, one);
+            if(place) newIc2(I_ASSIGN, place, one);
             newIc1(I_LABEL, label2);
         }
 
@@ -637,11 +641,12 @@ void irRealExp(Node* root, Operand* place, int depth){
 //	    char* s = (char*)malloc(10 * sizeof(char));
 //	    sprintf(s, "#0 - t%d", no);
 //	    Operand* op = newOp(OP_VALUE, s);
-	    newIc3(I_MINUS, place, zero, t1);
+	    if(place) newIc3(I_MINUS, place, zero, t1);
 	}
 	
 	//INT FLOAT
     else if(root->child->type == ENUM_INT || root->child->type == ENUM_FLOAT){
+        if (!place) return;
         Operand* op = (Operand*)malloc(sizeof(Operand));
         op->kind = OP_NUM;
         op->u.var_no = atoi(root->child->data);

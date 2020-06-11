@@ -7,7 +7,7 @@ extern InterCode* irHead;
 FILE* fp;
 int offset = -4;
 int paramCount = 0;
-#define PUSH_SP {fprintf(fp, "addi $sp, $fp, %d\n", offset); offset -= 4; }
+#define PUSH_SP { offset -= 4; fprintf(fp, "addi $sp, $fp, %d\n", offset);  }
 
 Value* setValOffset(int off){
     Value* value = (Value*)malloc(sizeof(Value));
